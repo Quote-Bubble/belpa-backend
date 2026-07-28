@@ -175,9 +175,22 @@ export type ContactDetails = {
   email: string;
 };
 
+/**
+ * How much intent the lead has shown, used to tier leads on the dashboard so
+ * roofers only chase the genuinely interested. `estimate_viewed` = gave details
+ * and saw a ballpark but hasn't asked to proceed ("priced only");
+ * `quote_requested` = clicked "get my exact quote" on the estimate;
+ * `callback_requested` = used the consultation path (already an explicit ask).
+ */
+export type LeadIntent =
+  | "estimate_viewed"
+  | "quote_requested"
+  | "callback_requested";
+
 export type LeadPayload = {
   rooferId: string;
   leadType: "quote" | "manual_consultation";
+  intent: LeadIntent;
   jobType: JobType;
   otherJobDescription: string | null;
   address: {

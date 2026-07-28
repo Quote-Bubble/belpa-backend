@@ -1,13 +1,21 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-import type { LeadPayload } from "@/lib/types";
+import type { LeadIntent, LeadPayload } from "@/lib/types";
 
 export type LeadStatus = "new" | "contacted" | "won" | "lost";
+
+/** "Hot" = an explicit ask to be contacted, so worth notifying the roofer
+ *  about. `estimate_viewed` ("priced only") is not — the whole point of tiering
+ *  is to not push cold price-peeks at the roofer. */
+export function isHotIntent(intent: string | null | undefined): boolean {
+  return intent === "quote_requested" || intent === "callback_requested";
+}
 
 export type LeadRow = {
   id: string;
   roofer_id: string;
   status: LeadStatus;
+  intent: LeadIntent;
   lead_type: string | null;
   job_type: string | null;
   contact_name: string | null;
@@ -45,6 +53,7 @@ export function mapLeadToRow(
     id: leadId,
     roofer_id: rooferUuid,
     status: "new",
+    intent: payload.intent ?? "estimate_viewed",
     lead_type: payload.leadType ?? null,
     job_type: payload.jobType ?? null,
     contact_name: payload.contact.name.trim(),
@@ -79,7 +88,7 @@ export async function persistLead(
   payload: LeadPayload,
   leadId: string,
   receivedAt: string,
-): Promise<{ row: LeadRow; inserted: boolean }> {
+): Promise<{ row: LeadRow; inserted: boolean; promoted: boolean }> {
   const { data: roofer, error: rooferError } = await supabase
     .from("roofers")
     .select("id")
@@ -118,5 +127,32 @@ export async function persistLead(
     );
   }
 
-  return { row, inserted: (data?.length ?? 0) > 0 };
+  const inserted = (data?.length ?? 0) > 0;
+
+  // Not a fresh insert → this id already exists (a retry, resend-on-mount, or
+  // an intent promotion from the estimate screen). ON CONFLICT DO NOTHING left
+  // the existing row untouched, so raise its intent here — but only ever
+  // upward, and only when this call is hot, so a stale "estimate_viewed" resend
+  // can never undo a promotion. The `.eq("intent", "estimate_viewed")` guard is
+  // what makes it monotonic.
+  let promoted = false;
+  if (!inserted && isHotIntent(row.intent)) {
+    const { data: raised, error: raiseError } = await supabase
+      .from("leads")
+      .update({ intent: row.intent })
+      .eq("id", leadId)
+      .eq("intent", "estimate_viewed")
+      .select("id");
+
+    if (raiseError) {
+      throw new LeadPersistError(
+        "insert_failed",
+        "We could not save your request just now. Please try once more.",
+        { cause: raiseError },
+      );
+    }
+    promoted = (raised?.length ?? 0) > 0;
+  }
+
+  return { row, inserted, promoted };
 }

@@ -4,7 +4,7 @@ import { NextResponse } from "next/server";
 
 import { preflight, withCors } from "@/lib/cors";
 import { sendLeadEmail } from "@/lib/lead-email";
-import { LeadPersistError, persistLead } from "@/lib/leads";
+import { LeadPersistError, isHotIntent, persistLead } from "@/lib/leads";
 import { loggedFetch, redact } from "@/lib/logged-fetch";
 import { limitOr429 } from "@/lib/rate-limit";
 import { getServiceSupabase } from "@/lib/supabase";
@@ -198,6 +198,7 @@ async function handlePost(request: Request) {
 
   let persisted = false;
   let insertedNew = false;
+  let promoted = false;
   let leadRow: LeadRow | null = null;
 
   const supabase = getServiceSupabase();
@@ -206,6 +207,7 @@ async function handlePost(request: Request) {
       const result = await persistLead(supabase, payload, leadId, receivedAt);
       persisted = true;
       insertedNew = result.inserted;
+      promoted = result.promoted;
       leadRow = result.row;
     } catch (error) {
       if (error instanceof LeadPersistError) {
@@ -281,11 +283,14 @@ async function handlePost(request: Request) {
     }
   }
 
-  // Email the roofer about genuinely-new leads. Best-effort: the lead is
-  // already saved, so a mail failure must never fail the request. Needs the
-  // service-role client (to read the roofer's linked login emails), so it only
-  // runs when we persisted here.
-  if (supabase && insertedNew && leadRow) {
+  // Email the roofer only about leads that show real intent: a brand-new hot
+  // lead ("request a callback"), or a "priced only" lead that just promoted
+  // itself to a quote request. Cold estimate_viewed leads are captured and
+  // shown on the dashboard but never emailed — the whole point of tiering is to
+  // not push cold price-peeks at the roofer. Best-effort: the lead is already
+  // saved, so a mail failure must never fail the request.
+  const shouldEmail = (insertedNew && isHotIntent(leadRow?.intent)) || promoted;
+  if (supabase && shouldEmail && leadRow) {
     try {
       await sendLeadEmail(supabase, leadRow);
     } catch (error) {

@@ -2,6 +2,7 @@ import type {
   ConditionAnswer,
   JobType,
   LatLng,
+  LeadIntent,
   LeadPayload,
   Material,
   PropertyType,
@@ -27,6 +28,11 @@ const VALID_JOB_TYPES = new Set<JobType>([
 ]);
 
 const VALID_LEAD_TYPES = new Set(["quote", "manual_consultation"]);
+const VALID_INTENTS = new Set<LeadIntent>([
+  "estimate_viewed",
+  "quote_requested",
+  "callback_requested",
+]);
 const VALID_ROOF_TYPES = new Set<RoofType>(["gable", "hip", "flat"]);
 const VALID_MEASUREMENT_METHODS = new Set<RoofMeasurement["method"]>([
   "solar_whole_roof",
@@ -277,6 +283,15 @@ export function parseLeadBody(body: unknown): ParseResult<LeadPayload> {
     return fail("Please complete your name and phone number.");
   }
 
+  // Optional + lenient: older widget builds omit it, and this field only tiers
+  // the lead on the dashboard — never worth dropping a real lead over. Absent,
+  // empty, or unrecognised all fall back to a plain priced lead.
+  const intentRaw = asString(body.intent, 40);
+  const intent: LeadIntent =
+    intentRaw && VALID_INTENTS.has(intentRaw as LeadIntent)
+      ? (intentRaw as LeadIntent)
+      : "estimate_viewed";
+
   const jobTypeRaw = asString(body.jobType, 64, { required: true });
   if (!jobTypeRaw || !VALID_JOB_TYPES.has(jobTypeRaw as JobType)) {
     return fail("Please complete your name and phone number.");
@@ -520,6 +535,7 @@ export function parseLeadBody(body: unknown): ParseResult<LeadPayload> {
     value: {
       rooferId,
       leadType: leadTypeRaw as LeadPayload["leadType"],
+      intent,
       jobType,
       otherJobDescription,
       address: { postcode, line: line ?? "", formatted },

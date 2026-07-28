@@ -16,6 +16,10 @@ function mockSupabase(options: {
   /** Rows returned by the upsert().select() — empty simulates a duplicate
    *  resend (ON CONFLICT DO NOTHING inserted nothing). Defaults to one row. */
   insertedRows?: Array<{ id: string }>;
+  /** Rows returned by the intent-raise update().select() — non-empty means a
+   *  cold row was promoted. Defaults to empty (nothing raised). */
+  promotedRows?: Array<{ id: string }>;
+  updateError?: { message: string } | null;
 }) {
   const maybeSingle = vi.fn().mockResolvedValue({
     data: options.roofer === undefined ? { id: "roofer-uuid" } : options.roofer,
@@ -31,9 +35,17 @@ function mockSupabase(options: {
     error: options.insertError ?? null,
   });
   const upsert = vi.fn().mockReturnValue({ select: upsertSelect });
+  // leads: .update(patch).eq("id",..).eq("intent","estimate_viewed").select("id")
+  const updateSelect = vi.fn().mockResolvedValue({
+    data: options.updateError ? null : (options.promotedRows ?? []),
+    error: options.updateError ?? null,
+  });
+  const updateEqIntent = vi.fn().mockReturnValue({ select: updateSelect });
+  const updateEqId = vi.fn().mockReturnValue({ eq: updateEqIntent });
+  const update = vi.fn().mockReturnValue({ eq: updateEqId });
   const from = vi.fn((table: string) => {
     if (table === "roofers") return { select };
-    if (table === "leads") return { upsert };
+    if (table === "leads") return { upsert, update };
     throw new Error(`Unexpected table ${table}`);
   });
 
@@ -45,6 +57,8 @@ function mockSupabase(options: {
     maybeSingle,
     upsert,
     upsertSelect,
+    update,
+    updateSelect,
   };
 }
 
@@ -141,6 +155,45 @@ describe("persistLead", () => {
     );
 
     expect(result.inserted).toBe(false);
+    expect(result.promoted).toBe(false);
+    // Cold resend — never touches the existing row's intent.
+    expect(mock.update).not.toHaveBeenCalled();
+  });
+
+  it("promotes an existing lead's intent on a hot duplicate", async () => {
+    const mock = mockSupabase({
+      roofer: { id: "roofer-uuid" },
+      insertedRows: [], // duplicate — the row already exists
+      promotedRows: [{ id: "lead-uuid" }], // the cold row was raised
+    });
+
+    const result = await persistLead(
+      mock.client,
+      makeLeadPayload({ intent: "quote_requested" }),
+      "lead-uuid",
+      "2026-07-20T02:00:00.000Z",
+    );
+
+    expect(result.inserted).toBe(false);
+    expect(result.promoted).toBe(true);
+    expect(mock.update).toHaveBeenCalledWith({ intent: "quote_requested" });
+  });
+
+  it("does not promote when the lead is already hot (0 rows raised)", async () => {
+    const mock = mockSupabase({
+      roofer: { id: "roofer-uuid" },
+      insertedRows: [],
+      promotedRows: [], // guard matched nothing — already promoted
+    });
+
+    const result = await persistLead(
+      mock.client,
+      makeLeadPayload({ intent: "quote_requested" }),
+      "lead-uuid",
+      "2026-07-20T02:00:00.000Z",
+    );
+
+    expect(result.promoted).toBe(false);
   });
 
   it("throws unknown_roofer when the slug is missing", async () => {

@@ -6,6 +6,7 @@ export function makeLeadPayload(
   return {
     rooferId: "quoter-landing-demo",
     leadType: "quote",
+    intent: "estimate_viewed",
     jobType: "full_replacement",
     otherJobDescription: null,
     address: {

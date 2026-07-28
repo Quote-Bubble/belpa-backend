@@ -16,6 +16,7 @@ function makeRow(overrides: Partial<LeadRow> = {}): LeadRow {
     id: "lead-1",
     roofer_id: "roofer-uuid",
     status: "new",
+    intent: "quote_requested",
     lead_type: "instant",
     job_type: "full_replacement",
     contact_name: "Alex Homeowner",
