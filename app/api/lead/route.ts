@@ -3,7 +3,7 @@ import { createHmac, randomUUID, timingSafeEqual } from "node:crypto";
 import { NextResponse } from "next/server";
 
 import { preflight, withCors } from "@/lib/cors";
-import { sendLeadEmail } from "@/lib/lead-email";
+import { sendCustomerEstimateEmail, sendLeadEmail } from "@/lib/lead-email";
 import { LeadPersistError, isHotIntent, persistLead } from "@/lib/leads";
 import { loggedFetch, redact } from "@/lib/logged-fetch";
 import { limitOr429 } from "@/lib/rate-limit";
@@ -295,6 +295,21 @@ async function handlePost(request: Request) {
       await sendLeadEmail(supabase, leadRow);
     } catch (error) {
       console.error("Lead email delivery failed", redact(error));
+    }
+  }
+
+  // Email the customer their estimate on a genuinely-new estimate lead (needs
+  // their email + a measured range). Best-effort — never fails the request.
+  if (
+    supabase &&
+    insertedNew &&
+    leadRow?.contact_email &&
+    leadRow.quote_min_ex_vat != null
+  ) {
+    try {
+      await sendCustomerEstimateEmail(supabase, leadRow);
+    } catch (error) {
+      console.error("Customer estimate email failed", redact(error));
     }
   }
 
