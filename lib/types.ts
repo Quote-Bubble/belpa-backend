@@ -212,6 +212,14 @@ export type LeadPayload = {
     imageryDate: string | null;
   };
   polygonCoords: LatLng[] | null;
+  /**
+   * The satellite map framing the customer actually drew on — the centre and
+   * zoom of the widget's map at submit time. Persisting it lets the dashboard
+   * reopen the roof on the same view the customer saw, instead of guessing a
+   * zoom from the polygon's extent. Null on leads captured before this existed
+   * and on flows that never showed a map (manual consultations).
+   */
+  mapView: { center: LatLng; zoom: number } | null;
   conditionAnswer: ConditionAnswer | null;
   conditionFlagged: boolean;
   material: Material | null;

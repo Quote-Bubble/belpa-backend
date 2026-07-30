@@ -265,6 +265,24 @@ function parsePolygonCoords(value: unknown): LatLng[] | null | undefined {
 }
 
 /**
+ * The map framing the customer drew on. Zoom is bounded to Google's own tile
+ * range rather than trusted from the body — an out-of-range zoom would make
+ * the dashboard's map open on a blank view.
+ */
+function parseMapView(
+  value: unknown,
+): { center: LatLng; zoom: number } | null | undefined {
+  if (value === null || value === undefined) return null;
+  if (!isPlainObject(value)) return undefined;
+  const center = parseLatLng(value.center);
+  if (!center) return undefined;
+  const zoom = value.zoom;
+  if (typeof zoom !== "number" || !Number.isFinite(zoom)) return undefined;
+  if (zoom < 1 || zoom > 22) return undefined;
+  return { center, zoom };
+}
+
+/**
  * Validates every field of LeadPayload. Replaces the shallow isLeadPayload
  * that let missing address through to mapLeadToRow (TypeError → 502).
  */
@@ -401,6 +419,11 @@ export function parseLeadBody(body: unknown): ParseResult<LeadPayload> {
 
   const polygonCoords = parsePolygonCoords(body.polygonCoords);
   if (polygonCoords === undefined) {
+    return fail("Please complete your name and phone number.");
+  }
+
+  const mapView = parseMapView(body.mapView);
+  if (mapView === undefined) {
     return fail("Please complete your name and phone number.");
   }
 
@@ -554,6 +577,7 @@ export function parseLeadBody(body: unknown): ParseResult<LeadPayload> {
         imageryDate,
       },
       polygonCoords,
+      mapView,
       conditionAnswer,
       conditionFlagged,
       material,

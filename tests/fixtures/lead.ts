@@ -28,6 +28,7 @@ export function makeLeadPayload(
       imageryDate: "2024-06-01",
     },
     polygonCoords: null,
+    mapView: null,
     conditionAnswer: "yes",
     conditionFlagged: false,
     material: "concrete_tile",
