@@ -74,6 +74,48 @@ describe("isLeadPayload", () => {
     delete payload.address;
     expect(isLeadPayload(payload)).toBe(false);
   });
+
+  // mapView is what lets the dashboard reopen the roof on the framing the
+  // customer actually drew on, so a bad one must not reach the row.
+  it("accepts a valid mapView", () => {
+    expect(
+      isLeadPayload(
+        makeLeadPayload({
+          mapView: { center: { lat: 53.8, lng: -1.55 }, zoom: 20 },
+        }),
+      ),
+    ).toBe(true);
+  });
+
+  it("accepts a null mapView (consultations never show a map)", () => {
+    expect(isLeadPayload(makeLeadPayload({ mapView: null }))).toBe(true);
+  });
+
+  it("rejects a mapView with an out-of-range zoom", () => {
+    for (const zoom of [0, 23, -1, Number.NaN, Number.POSITIVE_INFINITY]) {
+      expect(
+        isLeadPayload({
+          ...makeLeadPayload(),
+          mapView: { center: { lat: 53.8, lng: -1.55 }, zoom },
+        }),
+      ).toBe(false);
+    }
+  });
+
+  it("rejects a mapView with a bad centre", () => {
+    expect(
+      isLeadPayload({
+        ...makeLeadPayload(),
+        mapView: { center: { lat: "north", lng: -1.55 }, zoom: 20 },
+      }),
+    ).toBe(false);
+  });
+
+  it("rejects a non-object mapView", () => {
+    expect(
+      isLeadPayload({ ...makeLeadPayload(), mapView: "20" }),
+    ).toBe(false);
+  });
 });
 
 describe("POST /api/lead", () => {
