@@ -10,7 +10,8 @@ type Bucket =
   | "lead-ip"
   | "lead-slug"
   | "lead-submission"
-  | "event";
+  | "event"
+  | "roofer";
 
 const LIMITS: Record<
   Bucket,
@@ -24,6 +25,7 @@ const LIMITS: Record<
   // Distinct submission ids — retries with the same id share one slot.
   "lead-submission": { requests: 10, window: "1 h" },
   event: { requests: 300, window: "1 h" },
+  roofer: { requests: 120, window: "1 h" },
 };
 
 let redis: Redis | null | undefined;

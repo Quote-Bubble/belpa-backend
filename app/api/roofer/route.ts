@@ -1,19 +1,64 @@
 import { preflight, withCors } from "@/lib/cors";
 import { getServiceSupabase } from "@/lib/supabase";
+import { cacheGet, cacheSet, limitOr429 } from "@/lib/rate-limit";
+import { defaultQuoteConfig, parseQuoteConfig } from "@/lib/quote-config";
 
 import { NextResponse } from "next/server";
 
+const CACHE_TTL_SECONDS = 120;
+
+function originAllowed(
+  allowed: string[] | null | undefined,
+  request: Request,
+): boolean {
+  if (!allowed || allowed.length === 0) return true;
+  const origin = request.headers.get("origin");
+  const referer = request.headers.get("referer");
+  const candidates = [origin, referer].filter(Boolean) as string[];
+  if (candidates.length === 0) return true;
+  return candidates.some((c) => {
+    try {
+      const host = new URL(c).origin;
+      return allowed.some((a) => {
+        try {
+          return new URL(a).origin === host || a === host || a === c;
+        } catch {
+          return a === host || a === c;
+        }
+      });
+    } catch {
+      return false;
+    }
+  });
+}
+
 /**
- * Public roofer lookup by slug — powers the hosted Quote Link page
- * (quoter-widget-frontend `/l/[roofer]`), which needs the roofer's display
- * name to brand the page. The `roofers` table is RLS-locked, so this trusted
- * server route reads it with the service role and returns ONLY public fields
- * (slug + name). Nothing sensitive is exposed.
+ * Public roofer lookup by slug — branding + quote config for the widget.
  */
 async function handleGet(request: Request) {
+  const limited = await limitOr429(request, "roofer");
+  if (limited) return limited;
+
   const slug = new URL(request.url).searchParams.get("slug")?.trim();
   if (!slug) {
-    return NextResponse.json({ error: "A roofer slug is required." }, { status: 400 });
+    return NextResponse.json(
+      { error: "A roofer slug is required." },
+      { status: 400 },
+    );
+  }
+
+  const cacheKey = `roofer:config:${slug.toLowerCase()}`;
+  const cached = await cacheGet<{
+    roofer: { slug: string; name: string };
+    config: unknown;
+  }>(cacheKey);
+
+  if (cached) {
+    return NextResponse.json(cached, {
+      headers: {
+        "cache-control": "public, max-age=60, s-maxage=120",
+      },
+    });
   }
 
   const supabase = getServiceSupabase();
@@ -24,9 +69,9 @@ async function handleGet(request: Request) {
     );
   }
 
-  const { data, error } = await supabase
+  const { data: roofer, error } = await supabase
     .from("roofers")
-    .select("id,slug,name")
+    .select("id,slug,name,allowed_origins")
     .eq("slug", slug)
     .maybeSingle();
 
@@ -38,57 +83,42 @@ async function handleGet(request: Request) {
     );
   }
 
-  if (!data) {
+  if (!roofer) {
     return NextResponse.json({ error: "Roofer not found." }, { status: 404 });
   }
 
-  // Per-roofer pricing (nullable). Only returned when the roofer has actually
-  // saved custom rates — otherwise the widget uses its default price model, so
-  // roofers without pricing are unaffected. Normalised to camelCase for the
-  // widget's RooferPricing type.
-  let pricing: {
-    materials: { key: string; rate: number }[];
-    labourPerDay: number | null;
-    minimumCallout: number | null;
-    skipHire: number | null;
-    scaffoldPerWeek: number | null;
-    vatRegistered: boolean;
-  } | null = null;
-
-  const { data: priceRow } = await supabase
-    .from("roofer_pricing")
-    .select(
-      "materials,labour_per_day,minimum_callout,skip_hire,scaffold_per_week,vat_registered",
-    )
-    .eq("roofer_id", data.id)
-    .maybeSingle();
-
-  if (priceRow) {
-    const rawMaterials = Array.isArray(priceRow.materials)
-      ? (priceRow.materials as { key?: unknown; rate?: unknown }[])
-      : [];
-    const materials = rawMaterials
-      .filter(
-        (m) =>
-          typeof m.key === "string" &&
-          typeof m.rate === "number" &&
-          Number.isFinite(m.rate) &&
-          m.rate > 0,
-      )
-      .map((m) => ({ key: m.key as string, rate: m.rate as number }));
-    pricing = {
-      materials,
-      labourPerDay: priceRow.labour_per_day ?? null,
-      minimumCallout: priceRow.minimum_callout ?? null,
-      skipHire: priceRow.skip_hire ?? null,
-      scaffoldPerWeek: priceRow.scaffold_per_week ?? null,
-      vatRegistered: priceRow.vat_registered ?? true,
-    };
+  const allowed = (roofer.allowed_origins as string[] | null) ?? [];
+  if (!originAllowed(allowed, request)) {
+    return NextResponse.json(
+      { error: "This quote form is not available from this site." },
+      { status: 403 },
+    );
   }
 
-  return NextResponse.json({
-    roofer: { slug: data.slug, name: data.name },
-    pricing,
+  const { data: pricing } = await supabase
+    .from("roofer_pricing")
+    .select("quote_config,vat_registered")
+    .eq("roofer_id", roofer.id)
+    .maybeSingle();
+
+  let config = pricing?.quote_config
+    ? parseQuoteConfig(pricing.quote_config)
+    : defaultQuoteConfig();
+  if (pricing?.vat_registered != null) {
+    config = { ...config, vatRegistered: pricing.vat_registered as boolean };
+  }
+
+  const body = {
+    roofer: { slug: roofer.slug as string, name: roofer.name as string },
+    config,
+  };
+
+  await cacheSet(cacheKey, body, CACHE_TTL_SECONDS);
+
+  return NextResponse.json(body, {
+    headers: {
+      "cache-control": "public, max-age=60, s-maxage=120",
+    },
   });
 }
 

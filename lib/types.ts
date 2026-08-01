@@ -229,6 +229,11 @@ export type LeadPayload = {
     minExVat: number;
     maxExVat: number;
   } | null;
+  pricingSnapshot?: {
+    version: 1;
+    fingerprint: string;
+    enabledServices: string[];
+  } | null;
   contact: ContactDetails;
   fallbackReason: string | null;
   timestamp: string;

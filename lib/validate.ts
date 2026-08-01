@@ -551,6 +551,25 @@ export function parseLeadBody(body: unknown): ParseResult<LeadPayload> {
     obstructions = { chimneys, rooflights };
   }
 
+  let pricingSnapshot: LeadPayload["pricingSnapshot"] = null;
+  if (body.pricingSnapshot !== null && body.pricingSnapshot !== undefined) {
+    if (isPlainObject(body.pricingSnapshot)) {
+      const fingerprint = asString(body.pricingSnapshot.fingerprint, 80);
+      const enabled = Array.isArray(body.pricingSnapshot.enabledServices)
+        ? body.pricingSnapshot.enabledServices
+            .filter((x): x is string => typeof x === "string")
+            .slice(0, 20)
+        : [];
+      if (fingerprint) {
+        pricingSnapshot = {
+          version: 1,
+          fingerprint,
+          enabledServices: enabled,
+        };
+      }
+    }
+  }
+
   // Cast nested solar arrays — we validated length/shape; full deep segment
   // validation would duplicate the wire types without buying more safety.
   return {
@@ -584,6 +603,7 @@ export function parseLeadBody(body: unknown): ParseResult<LeadPayload> {
       propertyType,
       storeys,
       quoteRange,
+      pricingSnapshot,
       contact: { name, phone, email: email ?? "" },
       fallbackReason,
       timestamp,
