@@ -26,7 +26,7 @@ async function handleGet(request: Request) {
 
   const { data, error } = await supabase
     .from("roofers")
-    .select("slug,name")
+    .select("id,slug,name")
     .eq("slug", slug)
     .maybeSingle();
 
@@ -42,7 +42,54 @@ async function handleGet(request: Request) {
     return NextResponse.json({ error: "Roofer not found." }, { status: 404 });
   }
 
-  return NextResponse.json({ roofer: { slug: data.slug, name: data.name } });
+  // Per-roofer pricing (nullable). Only returned when the roofer has actually
+  // saved custom rates — otherwise the widget uses its default price model, so
+  // roofers without pricing are unaffected. Normalised to camelCase for the
+  // widget's RooferPricing type.
+  let pricing: {
+    materials: { key: string; rate: number }[];
+    labourPerDay: number | null;
+    minimumCallout: number | null;
+    skipHire: number | null;
+    scaffoldPerWeek: number | null;
+    vatRegistered: boolean;
+  } | null = null;
+
+  const { data: priceRow } = await supabase
+    .from("roofer_pricing")
+    .select(
+      "materials,labour_per_day,minimum_callout,skip_hire,scaffold_per_week,vat_registered",
+    )
+    .eq("roofer_id", data.id)
+    .maybeSingle();
+
+  if (priceRow) {
+    const rawMaterials = Array.isArray(priceRow.materials)
+      ? (priceRow.materials as { key?: unknown; rate?: unknown }[])
+      : [];
+    const materials = rawMaterials
+      .filter(
+        (m) =>
+          typeof m.key === "string" &&
+          typeof m.rate === "number" &&
+          Number.isFinite(m.rate) &&
+          m.rate > 0,
+      )
+      .map((m) => ({ key: m.key as string, rate: m.rate as number }));
+    pricing = {
+      materials,
+      labourPerDay: priceRow.labour_per_day ?? null,
+      minimumCallout: priceRow.minimum_callout ?? null,
+      skipHire: priceRow.skip_hire ?? null,
+      scaffoldPerWeek: priceRow.scaffold_per_week ?? null,
+      vatRegistered: priceRow.vat_registered ?? true,
+    };
+  }
+
+  return NextResponse.json({
+    roofer: { slug: data.slug, name: data.name },
+    pricing,
+  });
 }
 
 export const GET = withCors(handleGet);
