@@ -10,8 +10,10 @@ three things:
 
 There is no product UI in this repository. The frontend (the embeddable quote
 bubble and the full quote flow) lives in `quoter-widget-frontend` and calls this API
-over HTTP. Every route answers CORS preflights; allowed origins are
-controlled with `QUOTER_ALLOWED_ORIGINS`.
+over HTTP. Every route answers CORS preflights; `QUOTER_ALLOWED_ORIGINS` lists
+**first-party** origins only (the widget app + localhost). Roofer websites do
+not need to be listed — the flow runs inside our iframe. Per-roofer site locks
+use `roofers.allowed_origins` with `?host=` from `widget.js` / `launch.js`.
 
 ## Run
 

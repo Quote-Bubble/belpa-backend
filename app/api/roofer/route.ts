@@ -7,29 +7,37 @@ import { NextResponse } from "next/server";
 
 const CACHE_TTL_SECONDS = 120;
 
+function originMatches(allowed: string[], candidate: string): boolean {
+  try {
+    const host = new URL(candidate).origin;
+    return allowed.some((a) => {
+      try {
+        return new URL(a).origin === host || a === host || a === candidate;
+      } catch {
+        return a === host || a === candidate;
+      }
+    });
+  } catch {
+    return allowed.includes(candidate);
+  }
+}
+
+/**
+ * Per-roofer embed lock.
+ * - Empty allowlist → anywhere (Link + any site).
+ * - `?host=` from widget.js / launch.js → must match (the parent site).
+ * - No `host` → allowed (hosted /l link opened directly, or first-party).
+ * Origin/Referer alone are NOT used: browser calls come from the widget
+ * origin inside the iframe, not the roofer site.
+ */
 function originAllowed(
   allowed: string[] | null | undefined,
   request: Request,
 ): boolean {
   if (!allowed || allowed.length === 0) return true;
-  const origin = request.headers.get("origin");
-  const referer = request.headers.get("referer");
-  const candidates = [origin, referer].filter(Boolean) as string[];
-  if (candidates.length === 0) return true;
-  return candidates.some((c) => {
-    try {
-      const host = new URL(c).origin;
-      return allowed.some((a) => {
-        try {
-          return new URL(a).origin === host || a === host || a === c;
-        } catch {
-          return a === host || a === c;
-        }
-      });
-    } catch {
-      return false;
-    }
-  });
+  const host = new URL(request.url).searchParams.get("host")?.trim();
+  if (!host) return true;
+  return originMatches(allowed, host);
 }
 
 /**
@@ -47,7 +55,10 @@ async function handleGet(request: Request) {
     );
   }
 
-  const cacheKey = `roofer:config:${slug.toLowerCase()}`;
+  const embedHost =
+    new URL(request.url).searchParams.get("host")?.trim().toLowerCase() ||
+    "any";
+  const cacheKey = `roofer:config:${slug.toLowerCase()}:${embedHost}`;
   const cached = await cacheGet<{
     roofer: { slug: string; name: string };
     config: unknown;

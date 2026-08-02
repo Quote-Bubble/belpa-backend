@@ -1,15 +1,17 @@
 import { NextResponse } from "next/server";
 
 /**
- * CORS for the split architecture: the widget (and embeds on roofers' sites)
- * call this API from other origins, so every route answers preflights and
+ * CORS for the split architecture: the widget iframe calls this API from the
+ * widget origin (not the roofer's site). Every route answers preflights and
  * stamps allow headers.
  *
  * CORS is browser-side defence-in-depth only — it does not authenticate callers
  * and does not stop curl, scripts, or non-browser clients. The actual controls
  * are rate limiting (lib/rate-limit.ts) and strict body validation
- * (lib/validate.ts). QUOTER_ALLOWED_ORIGINS is a comma-separated origin list;
- * the default "*" keeps development friction-free — tighten it in production.
+ * (lib/validate.ts). QUOTER_ALLOWED_ORIGINS is a comma-separated list of
+ * first-party origins (widget + localhost). Do NOT list every customer site —
+ * per-roofer embed locks live on GET /api/roofer via ?host=. Default "*" keeps
+ * development friction-free; tighten it in production.
  *
  * Preview deploys must be enumerated in QUOTER_ALLOWED_ORIGINS. Do not use a
  * regex against *.vercel.app — the namespace is globally first-come-first-served.
