@@ -52,7 +52,7 @@ function getLimiter(bucket: Bucket): Ratelimit | null {
     limiter = new Ratelimit({
       redis: client,
       limiter: Ratelimit.slidingWindow(cfg.requests, cfg.window),
-      prefix: `quoter:${bucket}`,
+      prefix: `belpa:${bucket}`,
       analytics: false,
     });
     limiters.set(bucket, limiter);

@@ -8,19 +8,19 @@ import { NextResponse } from "next/server";
  * CORS is browser-side defence-in-depth only — it does not authenticate callers
  * and does not stop curl, scripts, or non-browser clients. The actual controls
  * are rate limiting (lib/rate-limit.ts) and strict body validation
- * (lib/validate.ts). QUOTER_ALLOWED_ORIGINS is a comma-separated list of
+ * (lib/validate.ts). BELPA_ALLOWED_ORIGINS is a comma-separated list of
  * first-party origins (widget + localhost). Do NOT list every customer site —
  * per-roofer embed locks live on GET /api/roofer via ?host=. Default "*" keeps
  * development friction-free; tighten it in production.
  *
- * Preview deploys must be enumerated in QUOTER_ALLOWED_ORIGINS. Do not use a
+ * Preview deploys must be enumerated in BELPA_ALLOWED_ORIGINS. Do not use a
  * regex against *.vercel.app — the namespace is globally first-come-first-served.
  */
 
 type Handler = (request: Request) => Promise<NextResponse> | NextResponse;
 
 function allowedOrigins(): string[] {
-  return (process.env.QUOTER_ALLOWED_ORIGINS ?? "*")
+  return (process.env.BELPA_ALLOWED_ORIGINS ?? "*")
     .split(",")
     .map((value) => value.trim())
     .filter(Boolean);

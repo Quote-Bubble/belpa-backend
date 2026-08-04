@@ -1,4 +1,4 @@
-# quoter-api-backend
+# belpa-api-backend
 
 The backend service for Belpa. It holds the server-side Google keys and does
 three things:
@@ -9,8 +9,8 @@ three things:
   configured roofer webhook
 
 There is no product UI in this repository. The frontend (the embeddable quote
-bubble and the full quote flow) lives in `quoter-widget-frontend` and calls this API
-over HTTP. Every route answers CORS preflights; `QUOTER_ALLOWED_ORIGINS` lists
+bubble and the full quote flow) lives in `belpa-widget-frontend` and calls this API
+over HTTP. Every route answers CORS preflights; `BELPA_ALLOWED_ORIGINS` lists
 **first-party** origins only (the widget app + localhost). Roofer websites do
 not need to be listed — the flow runs inside our iframe. Per-roofer site locks
 use `roofers.allowed_origins` with `?host=` from `widget.js` / `launch.js`.
@@ -24,8 +24,8 @@ npm install
 npm run dev   # serves on http://localhost:3001
 ```
 
-Port 3001 is the default so `quoter-widget-frontend` (port 3000) can point at it
-locally via `NEXT_PUBLIC_QUOTER_API_URL=http://localhost:3001`.
+Port 3001 is the default so `belpa-widget-frontend` (port 3000) can point at it
+locally via `NEXT_PUBLIC_BELPA_API_URL=http://localhost:3001`.
 
 ## Verification script
 
@@ -35,9 +35,9 @@ handlers directly, so it needs the `.env.local` keys.
 
 ## Where this code came from
 
-Split out of `quoter-bubble-frontend-backend` (kept as a backup). The files
+Split out of `belpa-bubble-frontend-backend` (kept as a backup). The files
 `lib/types.ts`, `lib/roof-geometry.ts` and `lib/roof-lines.ts` are copies of
-the canonical versions in `quoter-widget-frontend`; they exist here only for the
+the canonical versions in `belpa-widget-frontend`; they exist here only for the
 verification script and the solar route's response typing. If the quote or
-measurement logic changes, update `quoter-widget-frontend` first and mirror the change
+measurement logic changes, update `belpa-widget-frontend` first and mirror the change
 here.

@@ -88,7 +88,7 @@ describe("mapLeadToRow", () => {
       received_at: "2026-07-20T02:00:00.000Z",
     });
     expect(row.payload.leadId).toBe("11111111-1111-1111-1111-111111111111");
-    expect(row.payload.rooferId).toBe("quoter-landing-demo");
+    expect(row.payload.rooferId).toBe("belpa-landing-demo");
   });
 
   it("falls back to address.line when formatted is null", () => {
@@ -117,7 +117,7 @@ describe("persistLead", () => {
     const mock = mockSupabase({
       roofer: { id: "roofer-uuid" },
     });
-    const payload = makeLeadPayload({ rooferId: "quoter-landing-demo" });
+    const payload = makeLeadPayload({ rooferId: "belpa-landing-demo" });
 
     const result = await persistLead(
       mock.client,
@@ -127,7 +127,7 @@ describe("persistLead", () => {
     );
 
     expect(mock.from).toHaveBeenCalledWith("roofers");
-    expect(mock.eq).toHaveBeenCalledWith("slug", "quoter-landing-demo");
+    expect(mock.eq).toHaveBeenCalledWith("slug", "belpa-landing-demo");
     expect(mock.from).toHaveBeenCalledWith("leads");
     expect(mock.upsert).toHaveBeenCalledWith(
       expect.objectContaining({

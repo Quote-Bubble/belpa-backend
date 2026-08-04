@@ -252,7 +252,7 @@ async function handlePost(request: Request) {
         "content-type": "application/json",
       };
       if (webhookConfig.secret) {
-        headers["x-quoter-signature"] = signBody(
+        headers["x-belpa-signature"] = signBody(
           bodyText,
           webhookConfig.secret,
         );

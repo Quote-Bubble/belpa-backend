@@ -177,7 +177,7 @@ describe("POST /api/lead", () => {
       /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i,
     );
     expect(persistLead).toHaveBeenCalledTimes(1);
-    expect(persistLead.mock.calls[0][1].rooferId).toBe("quoter-landing-demo");
+    expect(persistLead.mock.calls[0][1].rooferId).toBe("belpa-landing-demo");
   });
 
   it("returns 202 (indistinguishable) when the roofer slug is unknown", async () => {
@@ -244,7 +244,7 @@ describe("POST /api/lead", () => {
     await POST(jsonRequest(leadRequest()));
     const init = vi.mocked(fetch).mock.calls[0][1] as RequestInit;
     const headers = init.headers as Record<string, string>;
-    expect(headers["x-quoter-signature"]).toMatch(/^[a-f0-9]{64}$/);
+    expect(headers["x-belpa-signature"]).toMatch(/^[a-f0-9]{64}$/);
   });
 
   it("still accepts the lead when the webhook fails after a successful persist", async () => {

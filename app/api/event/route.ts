@@ -9,7 +9,7 @@ import { parseEventBody, readJsonBody } from "@/lib/validate";
  * Funnel analytics sink for the embedded widget. Always returns 204 — analytics
  * failing must be invisible to the homeowner.
  *
- * Table definition lives in quoter-dashboard-frontend migration
+ * Table definition lives in belpa-dashboard-frontend migration
  * 0006_analytics_events.sql (RLS enabled, no anon/authenticated policies).
  */
 
