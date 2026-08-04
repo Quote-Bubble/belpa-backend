@@ -8,8 +8,28 @@ export type ServiceKey =
   | "flat_roof_replacement"
   | "tile_or_slate_repair"
   | "gutters_fascias_soffits"
+  | "roof_soft_wash"
+  | "roof_biocide_treatment"
+  | "gutter_clearing"
   | "leak_investigation"
   | "other";
+
+/** Roofing services enabled by default for a new roofer. */
+export const ROOFING_SERVICE_KEYS: ServiceKey[] = [
+  "full_replacement",
+  "flat_roof_replacement",
+  "tile_or_slate_repair",
+  "gutters_fascias_soffits",
+  "leak_investigation",
+  "other",
+];
+
+/** Roof-cleaning services (a cleaner's starting set). */
+export const CLEANING_SERVICE_KEYS: ServiceKey[] = [
+  "roof_soft_wash",
+  "roof_biocide_treatment",
+  "gutter_clearing",
+];
 
 export type AccessMode =
   | "scaffold_weeks"
@@ -55,11 +75,25 @@ export type RooflineServiceConfig = {
   access: AccessPolicy;
 };
 
+/** Cleaning priced per m² of measured roof area, with a call-out floor. */
+export type AreaCleanServiceConfig = {
+  ratePerM2ExVat: number;
+  minCalloutExVat: number;
+};
+
+/** A flat-price service (e.g. a gutter clear-out). */
+export type FlatServiceConfig = {
+  fixedExVat: number;
+};
+
 export type ServiceConfigs = {
   full_replacement?: ReplacementServiceConfig;
   flat_roof_replacement?: ReplacementServiceConfig;
   tile_or_slate_repair?: RepairServiceConfig;
   gutters_fascias_soffits?: RooflineServiceConfig;
+  roof_soft_wash?: AreaCleanServiceConfig;
+  roof_biocide_treatment?: AreaCleanServiceConfig;
+  gutter_clearing?: FlatServiceConfig;
 };
 
 export type QuoteConfig = {
@@ -102,6 +136,24 @@ export const SERVICE_CATALOG: ServiceMeta[] = [
     key: "gutters_fascias_soffits",
     label: "Gutters, fascias & soffits",
     description: "Roofline work priced per metre.",
+    priced: true,
+  },
+  {
+    key: "roof_soft_wash",
+    label: "Roof soft wash / moss removal",
+    description: "Soft-wash clean priced per m² of measured roof.",
+    priced: true,
+  },
+  {
+    key: "roof_biocide_treatment",
+    label: "Biocide treatment",
+    description: "Long-acting moss treatment priced per m².",
+    priced: true,
+  },
+  {
+    key: "gutter_clearing",
+    label: "Gutter clearing",
+    description: "Flat-price gutter clear-out.",
     priced: true,
   },
   {
@@ -195,18 +247,53 @@ export function defaultRoofline(): RooflineServiceConfig {
   };
 }
 
-/** Full default config — all services enabled (matches current widget behaviour). */
+/** UK-average soft wash (£/m² of roof) with a call-out floor. */
+export function defaultSoftWash(): AreaCleanServiceConfig {
+  return { ratePerM2ExVat: 14, minCalloutExVat: 150 };
+}
+
+/** UK-average biocide treatment (£/m²). */
+export function defaultBiocide(): AreaCleanServiceConfig {
+  return { ratePerM2ExVat: 5, minCalloutExVat: 100 };
+}
+
+/** UK-average flat gutter clear-out. */
+export function defaultGutterClearing(): FlatServiceConfig {
+  return { fixedExVat: 120 };
+}
+
+/** All service configs at defaults — the editor reads rates from here even for
+ *  services that aren't enabled yet, so toggling one on just works. */
+function allDefaultServiceConfigs(): ServiceConfigs {
+  return {
+    full_replacement: defaultReplacementPitched(),
+    flat_roof_replacement: defaultReplacementFlat(),
+    tile_or_slate_repair: defaultRepair(),
+    gutters_fascias_soffits: defaultRoofline(),
+    roof_soft_wash: defaultSoftWash(),
+    roof_biocide_treatment: defaultBiocide(),
+    gutter_clearing: defaultGutterClearing(),
+  };
+}
+
+/** Default config for a new roofer — roofing services enabled, cleaning off. */
 export function defaultQuoteConfig(): QuoteConfig {
   return {
     version: 1,
-    enabledServices: SERVICE_CATALOG.map((s) => s.key),
-    services: {
-      full_replacement: defaultReplacementPitched(),
-      flat_roof_replacement: defaultReplacementFlat(),
-      tile_or_slate_repair: defaultRepair(),
-      gutters_fascias_soffits: defaultRoofline(),
-    },
+    enabledServices: [...ROOFING_SERVICE_KEYS],
+    services: allDefaultServiceConfigs(),
     vatRegistered: true,
+    confidenceWidth: null,
+  };
+}
+
+/** Preset for a roof-cleaning business — cleaning services on, roofing off. */
+export function roofCleaningConfig(): QuoteConfig {
+  return {
+    version: 1,
+    enabledServices: [...CLEANING_SERVICE_KEYS],
+    services: allDefaultServiceConfigs(),
+    vatRegistered: false,
     confidenceWidth: null,
   };
 }
@@ -324,6 +411,17 @@ function parseMaterials(
   });
 }
 
+function parseAreaClean(
+  raw: unknown,
+  defaults: AreaCleanServiceConfig,
+): AreaCleanServiceConfig {
+  if (!isObj(raw)) return { ...defaults };
+  return {
+    ratePerM2ExVat: num(raw.ratePerM2ExVat, defaults.ratePerM2ExVat),
+    minCalloutExVat: num(raw.minCalloutExVat, defaults.minCalloutExVat),
+  };
+}
+
 function parseReplacement(
   raw: unknown,
   defaults: ReplacementServiceConfig,
@@ -395,6 +493,20 @@ export function parseQuoteConfig(raw: unknown): QuoteConfig {
           access: parseAccess(r.access, d.access),
         };
       })(),
+      roof_soft_wash: parseAreaClean(
+        servicesRaw.roof_soft_wash,
+        defaultSoftWash(),
+      ),
+      roof_biocide_treatment: parseAreaClean(
+        servicesRaw.roof_biocide_treatment,
+        defaultBiocide(),
+      ),
+      gutter_clearing: (() => {
+        const d = defaultGutterClearing();
+        const r = servicesRaw.gutter_clearing;
+        if (!isObj(r)) return d;
+        return { fixedExVat: num(r.fixedExVat, d.fixedExVat) };
+      })(),
     },
     vatRegistered: bool(raw.vatRegistered, true),
     confidenceWidth:
@@ -435,6 +547,14 @@ function rooflineComplete(c: RooflineServiceConfig): boolean {
   return true;
 }
 
+function areaCleanComplete(c: AreaCleanServiceConfig): boolean {
+  return c.ratePerM2ExVat > 0;
+}
+
+function flatComplete(c: FlatServiceConfig): boolean {
+  return c.fixedExVat > 0;
+}
+
 export function assessCompleteness(config: QuoteConfig): Completeness {
   const warnings: string[] = [];
   const enabledPriced = config.enabledServices.filter((k) =>
@@ -461,6 +581,15 @@ export function assessCompleteness(config: QuoteConfig): Completeness {
       config.services.gutters_fascias_soffits
     ) {
       ok = rooflineComplete(config.services.gutters_fascias_soffits);
+    } else if (key === "roof_soft_wash" && config.services.roof_soft_wash) {
+      ok = areaCleanComplete(config.services.roof_soft_wash);
+    } else if (
+      key === "roof_biocide_treatment" &&
+      config.services.roof_biocide_treatment
+    ) {
+      ok = areaCleanComplete(config.services.roof_biocide_treatment);
+    } else if (key === "gutter_clearing" && config.services.gutter_clearing) {
+      ok = flatComplete(config.services.gutter_clearing);
     }
     if (ok) completePriced += 1;
     else {
