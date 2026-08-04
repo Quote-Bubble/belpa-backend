@@ -5,7 +5,9 @@ import { defaultQuoteConfig, parseQuoteConfig } from "@/lib/quote-config";
 
 import { NextResponse } from "next/server";
 
-const CACHE_TTL_SECONDS = 120;
+// Kept short while roofers are actively set up so pricing/service changes
+// surface within seconds. Raise once there's real homeowner traffic.
+const CACHE_TTL_SECONDS = 20;
 
 function originMatches(allowed: string[], candidate: string): boolean {
   try {
@@ -67,7 +69,7 @@ async function handleGet(request: Request) {
   if (cached) {
     return NextResponse.json(cached, {
       headers: {
-        "cache-control": "public, max-age=60, s-maxage=120",
+        "cache-control": "public, max-age=20, s-maxage=20",
       },
     });
   }
@@ -128,7 +130,7 @@ async function handleGet(request: Request) {
 
   return NextResponse.json(body, {
     headers: {
-      "cache-control": "public, max-age=60, s-maxage=120",
+      "cache-control": "public, max-age=20, s-maxage=20",
     },
   });
 }
