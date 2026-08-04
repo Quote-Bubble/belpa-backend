@@ -1,9 +1,9 @@
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "Quoter API",
+  title: "Belpa API",
   description:
-    "Backend service for Quoter: Google Geocoding and Solar proxying plus lead delivery.",
+    "Backend service for Belpa: Google Geocoding and Solar proxying plus lead delivery.",
   robots: { index: false, follow: false },
 };
 

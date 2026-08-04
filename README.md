@@ -1,6 +1,6 @@
 # quoter-api-backend
 
-The backend service for Quoter. It holds the server-side Google keys and does
+The backend service for Belpa. It holds the server-side Google keys and does
 three things:
 
 - `POST /api/geocode` - turns an address into coordinates (Google Geocoding)

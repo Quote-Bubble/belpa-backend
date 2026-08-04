@@ -103,7 +103,7 @@ describe("getLeadEmailConfig", () => {
     process.env.RESEND_API_KEY = "re_test";
     expect(getLeadEmailConfig()).toMatchObject({
       ok: true,
-      from: "Quoter <onboarding@resend.dev>",
+      from: "Belpa <onboarding@resend.dev>",
     });
   });
 });

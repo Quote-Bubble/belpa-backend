@@ -47,9 +47,9 @@ export function getLeadEmailConfig(): NotifyConfig {
 
   // Onboarding default sends from Resend's shared domain and only delivers to
   // your own verified address — fine for testing. Set LEAD_NOTIFY_FROM to a
-  // verified domain (e.g. "Quoter <leads@quoter.app>") before launch.
+  // verified domain (e.g. "Belpa <leads@quoter.app>") before launch.
   const from =
-    process.env.LEAD_NOTIFY_FROM?.trim() || "Quoter <onboarding@resend.dev>";
+    process.env.LEAD_NOTIFY_FROM?.trim() || "Belpa <onboarding@resend.dev>";
   // Reply-To = the homeowner, so the roofer can reply straight to the lead.
   const replyToLead = process.env.LEAD_NOTIFY_REPLY_TO_LEAD !== "false";
 
@@ -152,7 +152,7 @@ export function buildLeadEmail(row: LeadRow): {
     <p style="margin:0 0 6px;font-size:13px;font-weight:700;color:#2f6bff;letter-spacing:.04em">NEW LEAD</p>
     <h1 style="margin:0 0 28px;font-size:25px;color:#111827">${escapeHtml(name)} just requested a quote</h1>
     <table style="border-collapse:collapse;width:100%">${tableRows}</table>
-    <p style="margin:30px 0 0;font-size:13px;color:#9ca3af">Sent by Quoter · reply to this email to reach the customer.</p>
+    <p style="margin:30px 0 0;font-size:13px;color:#9ca3af">Sent by Belpa · reply to this email to reach the customer.</p>
   </div>
 </div>`;
 
@@ -262,7 +262,7 @@ export function buildCustomerEstimateEmail(
     "",
     `This is a guide based on satellite measurements — ${roofer} will confirm the exact price after a free, no-obligation visit.`,
     "",
-    "Thanks for using Quoter.",
+    "Thanks for using Belpa.",
   ].join("\n");
 
   const html = `<div style="font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;background:#f4f6fb;padding:32px 20px">
@@ -276,7 +276,7 @@ export function buildCustomerEstimateEmail(
     <p style="margin:0 0 8px;font-size:15px;line-height:1.6;color:#374151">This is a guide based on satellite measurements. <strong>${escapeHtml(
       roofer,
     )}</strong> will confirm your exact price after a free, no-obligation visit.</p>
-    <p style="margin:26px 0 0;font-size:13px;color:#9ca3af">Sent by Quoter on behalf of ${escapeHtml(roofer)}.</p>
+    <p style="margin:26px 0 0;font-size:13px;color:#9ca3af">Sent by Belpa on behalf of ${escapeHtml(roofer)}.</p>
   </div>
 </div>`;
 
