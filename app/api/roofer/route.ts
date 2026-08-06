@@ -124,6 +124,11 @@ async function handleGet(request: Request) {
   const body = {
     roofer: { slug: roofer.slug as string, name: roofer.name as string },
     config,
+    // Published deliberately. The widget's middleware turns this into a
+    // frame-ancestors header, which puts the same list in a response header
+    // anyway — there is nothing to conceal, and the browser is what enforces
+    // it. Empty means "frameable anywhere", the default for a fresh install.
+    allowedOrigins: allowed,
   };
 
   await cacheSet(cacheKey, body, CACHE_TTL_SECONDS);
