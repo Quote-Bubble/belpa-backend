@@ -147,13 +147,20 @@ export function buildLeadEmail(row: LeadRow): {
     )
     .join("");
 
-  const html = `<div style="font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;background:#f4f6fb;padding:32px 20px">
-  <div style="max-width:600px;margin:0 auto;background:#fff;border-radius:16px;padding:40px;border:1px solid #eef0f5">
-    <p style="margin:0 0 6px;font-size:13px;font-weight:700;color:#2f6bff;letter-spacing:.04em">NEW LEAD</p>
-    <h1 style="margin:0 0 28px;font-size:25px;color:#111827">${escapeHtml(name)} just requested a quote</h1>
-    <table style="border-collapse:collapse;width:100%">${tableRows}</table>
-    <p style="margin:30px 0 0;font-size:13px;color:#9ca3af">Sent by Belpa · reply to this email to reach the customer.</p>
-  </div>
+  // Deliberately plain. Gmail's Promotions classifier keys on the visual
+  // grammar of marketing mail — a tinted full-bleed background, a rounded card
+  // floating on it, a coloured all-caps eyebrow, a large display heading. This
+  // email had all four and got filed under Promotions, which for a lead alert
+  // is indistinguishable from not sending it: the roofer's whole edge is
+  // ringing back while the homeowner is still on the page.
+  //
+  // So it now looks like what it is — a notification. White background, no
+  // card, no accent colour, ordinary heading, facts in a table. The same shape
+  // as the mail people actually read: order confirmations and system alerts.
+  const html = `<div style="font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;max-width:560px;padding:8px 4px;color:#111827">
+  <p style="margin:0 0 20px;font-size:16px;line-height:1.5">${escapeHtml(name)} requested a roof quote${postcode ? ` in ${escapeHtml(postcode)}` : ""}.</p>
+  <table style="border-collapse:collapse;width:100%">${tableRows}</table>
+  <p style="margin:24px 0 0;font-size:13px;color:#6b7280">Reply to this email to reach the customer directly.</p>
 </div>`;
 
   return { subject, html, text };
@@ -186,6 +193,11 @@ export async function sendLeadEmail(
     subject,
     html,
     text,
+    // Marks each alert as a distinct transactional event rather than one of a
+    // batch. Without it Gmail is free to collapse consecutive lead emails into
+    // a single thread — which would bury the second lead of the day inside the
+    // first — and threading similar mail is itself a bulk signal.
+    headers: { "X-Entity-Ref-ID": row.id },
   };
   if (config.replyToLead && row.contact_email?.trim()) {
     body.reply_to = row.contact_email.trim();
@@ -260,24 +272,30 @@ export function buildCustomerEstimateEmail(
     "",
     range ? `${range} (excl. VAT)` : "Your roofer will confirm your price after a visit.",
     "",
-    `This is a guide based on satellite measurements — ${roofer} will confirm the exact price after a free, no-obligation visit.`,
+    `This is a guide based on satellite measurements — ${roofer} will confirm the exact price after a visit, which costs you nothing.`,
     "",
-    "Thanks for using Belpa.",
+    "You can reply to this email to reach them directly.",
+    "",
+    `Sent by Belpa on behalf of ${roofer}.`,
   ].join("\n");
 
-  const html = `<div style="font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;background:#f4f6fb;padding:32px 20px">
-  <div style="max-width:560px;margin:0 auto;background:#fff;border-radius:16px;padding:40px;border:1px solid #eef0f5">
-    <h1 style="margin:0 0 6px;font-size:22px;color:#111827">Hi ${escapeHtml(firstName)}, here's your estimate</h1>
-    <p style="margin:0 0 26px;font-size:15px;color:#6b7280">${escapeHtml(jobLower)} · ${escapeHtml(address)}</p>
-    <div style="text-align:center;background:#f6f8ff;border-radius:14px;padding:26px 20px;margin-bottom:26px">
-      <p style="margin:0;font-size:30px;font-weight:700;color:#111827">${escapeHtml(range ?? "Priced after a visit")}</p>
-      ${range ? `<p style="margin:6px 0 0;font-size:13px;color:#9ca3af">excl. VAT</p>` : ""}
-    </div>
-    <p style="margin:0 0 8px;font-size:15px;line-height:1.6;color:#374151">This is a guide based on satellite measurements. <strong>${escapeHtml(
-      roofer,
-    )}</strong> will confirm your exact price after a free, no-obligation visit.</p>
-    <p style="margin:26px 0 0;font-size:13px;color:#9ca3af">Sent by Belpa on behalf of ${escapeHtml(roofer)}.</p>
-  </div>
+  // Same de-marketing treatment as the roofer alert above, for the same
+  // reason. The centred price on a tinted panel was the single loudest
+  // promotional signal in either email — it is the exact shape of a discount
+  // callout — so the figure now sits inline in a sentence.
+  //
+  // "free, no-obligation" also went. It is estate-agent language, it is the
+  // kind of phrase promotional filters weigh, and it is not needed: the visit
+  // being free is worth saying once, plainly, without the sales cadence.
+  const html = `<div style="font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;max-width:560px;padding:8px 4px;color:#111827">
+  <p style="margin:0 0 18px;font-size:16px;line-height:1.6">Hi ${escapeHtml(firstName)},</p>
+  <p style="margin:0 0 18px;font-size:16px;line-height:1.6">Here's your estimate for ${escapeHtml(jobLower)} at ${escapeHtml(address)}:</p>
+  <p style="margin:0 0 18px;font-size:20px;font-weight:600">${escapeHtml(range ?? "Priced after a visit")}${range ? ` <span style="font-size:14px;font-weight:400;color:#6b7280">excl. VAT</span>` : ""}</p>
+  <p style="margin:0 0 18px;font-size:16px;line-height:1.6">This is a guide based on satellite measurements. ${escapeHtml(
+    roofer,
+  )} will confirm the exact price after a visit, which costs you nothing.</p>
+  <p style="margin:0;font-size:16px;line-height:1.6">You can reply to this email to reach them directly.</p>
+  <p style="margin:24px 0 0;font-size:13px;color:#6b7280">Sent by Belpa on behalf of ${escapeHtml(roofer)}.</p>
 </div>`;
 
   return { subject, html, text };
@@ -311,6 +329,7 @@ export async function sendCustomerEstimateEmail(
     subject,
     html,
     text,
+    headers: { "X-Entity-Ref-ID": row.id },
   };
   if (rooferEmails.length) body.reply_to = rooferEmails[0];
 
