@@ -47,7 +47,7 @@ export function getLeadEmailConfig(): NotifyConfig {
 
   // Onboarding default sends from Resend's shared domain and only delivers to
   // your own verified address — fine for testing. Set LEAD_NOTIFY_FROM to a
-  // verified domain (e.g. "Belpa <leads@belpa.co.uk>") before launch.
+  // verified domain (e.g. "Belpa <hello@belpa.co.uk>") before launch.
   const from =
     process.env.LEAD_NOTIFY_FROM?.trim() || "Belpa <onboarding@resend.dev>";
   // Reply-To = the homeowner, so the roofer can reply straight to the lead.
