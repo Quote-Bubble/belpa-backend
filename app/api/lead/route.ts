@@ -1,5 +1,6 @@
 import { createHmac, randomUUID, timingSafeEqual } from "node:crypto";
 
+import * as Sentry from "@sentry/nextjs";
 import { NextResponse } from "next/server";
 
 import { preflight, withCors } from "@/lib/cors";
@@ -292,9 +293,28 @@ async function handlePost(request: Request) {
   const shouldEmail = (insertedNew && isHotIntent(leadRow?.intent)) || promoted;
   if (supabase && shouldEmail && leadRow) {
     try {
-      await sendLeadEmail(supabase, leadRow);
+      const result = await sendLeadEmail(supabase, leadRow);
+      // A skip is not an exception, so it never reaches the catch below — and
+      // a skip is the worse outcome of the two. It means a hot lead was saved
+      // and the roofer was never told, which looks like the product working
+      // right up until they wonder why nobody called.
+      //
+      // "no_recipient" in production means an onboarded roofer has no login
+      // linked. "no_api_key" means the deploy lost its Resend config. Both are
+      // silent, both are ours, and neither shows up anywhere else.
+      if (!result.sent) {
+        Sentry.captureMessage("Lead email skipped", {
+          level: "warning",
+          tags: { reason: result.reason ?? "unknown" },
+          extra: { rooferId: leadRow.roofer_id, leadId: leadRow.id },
+        });
+      }
     } catch (error) {
       console.error("Lead email delivery failed", redact(error));
+      Sentry.captureException(error, {
+        tags: { stage: "lead-email" },
+        extra: { rooferId: leadRow.roofer_id, leadId: leadRow.id },
+      });
     }
   }
 
@@ -310,6 +330,10 @@ async function handlePost(request: Request) {
       await sendCustomerEstimateEmail(supabase, leadRow);
     } catch (error) {
       console.error("Customer estimate email failed", redact(error));
+      Sentry.captureException(error, {
+        tags: { stage: "customer-estimate-email" },
+        extra: { rooferId: leadRow.roofer_id, leadId: leadRow.id },
+      });
     }
   }
 

@@ -15,6 +15,7 @@
     "verify:solar": "tsx scripts/verify-solar-properties.ts"
   },
   "dependencies": {
+    "@sentry/nextjs": "^10.69.0",
     "@supabase/supabase-js": "^2.109.0",
     "@turf/area": "^7.3.5",
     "@turf/helpers": "^7.3.5",
