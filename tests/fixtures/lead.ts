@@ -35,6 +35,7 @@ export function makeLeadPayload(
     propertyType: "detached",
     storeys: 2,
     quoteRange: { minExVat: 4200, maxExVat: 5800 },
+    damage: null,
     contact: {
       name: "Alex Example",
       phone: "07123456789",

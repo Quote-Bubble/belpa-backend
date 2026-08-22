@@ -11,7 +11,8 @@ type Bucket =
   | "lead-slug"
   | "lead-submission"
   | "event"
-  | "roofer";
+  | "roofer"
+  | "severity";
 
 const LIMITS: Record<
   Bucket,
@@ -26,6 +27,10 @@ const LIMITS: Record<
   "lead-submission": { requests: 10, window: "1 h" },
   event: { requests: 300, window: "1 h" },
   roofer: { requests: 120, window: "1 h" },
+  // Tighter than the rest: every call uploads images and spends money at
+  // Gemini, so this is the one bucket where the limit is a cost control and
+  // not just abuse protection.
+  severity: { requests: 20, window: "1 h" },
 };
 
 let redis: Redis | null | undefined;
@@ -96,6 +101,17 @@ export async function limitOr429(
       },
     },
   );
+}
+
+/**
+ * Whether a real limiter is wired up.
+ *
+ * `limitOr429` deliberately fails OPEN when Redis is unconfigured, which is
+ * right for geocoding but wrong for a route that spends money per call. Routes
+ * that must fail CLOSED check this first — see app/api/severity/route.ts.
+ */
+export function isRateLimitConfigured(): boolean {
+  return getRedis() !== null;
 }
 
 /** Cache helpers for solar/geocode — same Redis, TTL in seconds. */
