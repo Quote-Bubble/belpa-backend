@@ -173,31 +173,85 @@ export function unusable(): SiteObservation {
   };
 }
 
+const R = 6371000;
+const rad = (d: number) => (d * Math.PI) / 180;
+
+/** Compass bearing from camera to house, degrees clockwise from north. */
+function bearing(from: LatLng, to: LatLng): number {
+  const p1 = rad(from.lat);
+  const p2 = rad(to.lat);
+  const dl = rad(to.lng - from.lng);
+  const y = Math.sin(dl) * Math.cos(p2);
+  const x =
+    Math.cos(p1) * Math.sin(p2) - Math.sin(p1) * Math.cos(p2) * Math.cos(dl);
+  return (((Math.atan2(y, x) * 180) / Math.PI) + 360) % 360;
+}
+
+function distanceM(a: LatLng, b: LatLng): number {
+  const p1 = rad(a.lat);
+  const p2 = rad(b.lat);
+  const dp = p2 - p1;
+  const dl = rad(b.lng - a.lng);
+  const h =
+    Math.sin(dp / 2) ** 2 + Math.cos(p1) * Math.cos(p2) * Math.sin(dl / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(h));
+}
+
 /**
- * Street View metadata is FREE and unlimited (SKU 3168-48A9-5C8C), so asking
- * whether imagery exists costs nothing — and skips the billable image request
- * entirely for the addresses that have none. It also returns the capture date,
- * which matters because Street View is often years old and an extension may
- * simply not be in the picture.
+ * Past this the nearest panorama is not showing the property at all — a private
+ * drive, a new estate, a rear service lane. Asking a vision model to assess
+ * site access from a photograph of a different street is worse than not asking:
+ * it returns confident observations about the wrong house, and those go on to
+ * move a price.
+ */
+const MAX_CAMERA_DISTANCE_M = 60;
+
+/**
+ * Metadata is a separate SKU with unlimited free usage (3168-48A9-5C8C), so this
+ * costs nothing and answers three things before any billable request: whether
+ * coverage exists, which exact panorama, and where its camera stands.
+ *
+ * That last one is what makes the imagery usable. Requesting by location snaps
+ * to the nearest panorama and then faces wherever the camera van was pointing,
+ * so without a computed heading the model is routinely shown a neighbour or a
+ * hedge. Measured on a real lead: camera 25m away, needed 263 degrees.
  */
 async function streetViewMeta(
   coords: LatLng,
   key: string,
-): Promise<{ ok: boolean; year: number | null }> {
+): Promise<{
+  ok: boolean;
+  year: number | null;
+  panoId: string | null;
+  heading: number | null;
+}> {
+  const miss = { ok: false, year: null, panoId: null, heading: null };
   try {
     const url =
       `https://maps.googleapis.com/maps/api/streetview/metadata` +
-      `?location=${coords.lat},${coords.lng}&key=${key}`;
+      `?location=${coords.lat},${coords.lng}&source=outdoor&key=${key}`;
     const r = await loggedFetch("streetview-meta", url, {
       cache: "no-store",
       signal: AbortSignal.timeout(5_000),
     });
-    const d = (await r.json()) as { status?: string; date?: string };
-    if (d.status !== "OK") return { ok: false, year: null };
+    const d = (await r.json()) as {
+      status?: string;
+      date?: string;
+      pano_id?: string;
+      location?: LatLng;
+    };
+    if (d.status !== "OK" || !d.pano_id || !d.location) return miss;
+    if (distanceM(d.location, coords) > MAX_CAMERA_DISTANCE_M) return miss;
+
     const year = d.date ? Number(d.date.slice(0, 4)) : null;
-    return { ok: true, year: Number.isFinite(year) ? year : null };
+    return {
+      ok: true,
+      year: Number.isFinite(year) ? year : null,
+      panoId: d.pano_id,
+      heading: bearing(d.location, coords),
+    };
   } catch {
-    return { ok: false, year: null };
+    return miss;
   }
 }
 
@@ -234,10 +288,12 @@ export async function observeSite(
   const meta = await streetViewMeta(coords, opts.mapsKey);
   if (!meta.ok) return unusable();
 
+  // By pano id and computed heading, not by location — see streetViewMeta.
+  // Pinning the panorama also means it cannot re-snap to a different one later.
   const streetUrl =
     `https://maps.googleapis.com/maps/api/streetview` +
-    `?size=640x400&location=${coords.lat},${coords.lng}` +
-    `&fov=80&pitch=8&return_error_code=true&key=${opts.mapsKey}`;
+    `?size=640x400&pano=${meta.panoId}&heading=${meta.heading!.toFixed(1)}` +
+    `&fov=70&pitch=10&return_error_code=true&key=${opts.mapsKey}`;
   const aerialUrl =
     `https://maps.googleapis.com/maps/api/staticmap` +
     `?center=${coords.lat},${coords.lng}&zoom=19&size=640x400` +
