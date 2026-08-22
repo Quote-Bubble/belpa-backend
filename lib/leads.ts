@@ -25,6 +25,8 @@ export type LeadRow = {
   address_postcode: string | null;
   quote_min_ex_vat: number | null;
   quote_max_ex_vat: number | null;
+  /** Photo-derived damage severity 1-5. Null is the norm — see migration 0019. */
+  severity: number | null;
   payload: LeadPayload & { leadId: string };
   received_at: string;
 };
@@ -67,6 +69,9 @@ export function mapLeadToRow(
     address_postcode: payload.address.postcode?.trim() || null,
     quote_min_ex_vat: payload.quoteRange?.minExVat ?? null,
     quote_max_ex_vat: payload.quoteRange?.maxExVat ?? null,
+    // Promoted out of the jsonb payload to a real column so the dashboard can
+    // show it on list rows without loading every lead's payload.
+    severity: payload.damage?.severity?.score ?? null,
     payload: { ...payload, leadId },
     received_at: receivedAt,
   };

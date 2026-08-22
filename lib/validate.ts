@@ -1,5 +1,6 @@
 import type {
   ConditionAnswer,
+  DamageSeverity,
   JobType,
   LatLng,
   LeadIntent,
@@ -22,8 +23,11 @@ const VALID_JOB_TYPES = new Set<JobType>([
   "full_replacement",
   "tile_or_slate_repair",
   "flat_roof_replacement",
-  "leak_investigation",
   "gutters_fascias_soffits",
+  "roof_soft_wash",
+  "roof_biocide_treatment",
+  "gutter_clearing",
+  "leak_investigation",
   "other",
 ]);
 
@@ -486,6 +490,50 @@ export function parseLeadBody(body: unknown): ParseResult<LeadPayload> {
     quoteRange = { minExVat, maxExVat };
   }
 
+  // Lenient, like `intent` above: older widget builds never send this, and a
+  // malformed severity is not worth dropping a real lead over. Anything we
+  // cannot read cleanly degrades to null, which prices exactly as "no photos".
+  let damage: LeadPayload["damage"] = null;
+  if (isPlainObject(body.damage)) {
+    const rawPaths = Array.isArray(body.damage.photoPaths)
+      ? body.damage.photoPaths
+      : [];
+    const photoPaths = rawPaths
+      .filter((p): p is string => typeof p === "string")
+      .map((p) => p.slice(0, 300))
+      .slice(0, 5);
+
+    let severity: DamageSeverity | null = null;
+    if (isPlainObject(body.damage.severity)) {
+      const raw = body.damage.severity;
+      const score = asFiniteNumber(raw.score);
+      const confidence = asString(raw.confidence, 10);
+      const isScore =
+        score !== undefined &&
+        score !== null &&
+        Number.isInteger(score) &&
+        score >= 1 &&
+        score <= 5;
+      if (isScore && (confidence === "medium" || confidence === "high")) {
+        severity = {
+          score: score as DamageSeverity["score"],
+          confidence,
+          visibleIssues: Array.isArray(raw.visibleIssues)
+            ? raw.visibleIssues
+                .filter((v): v is string => typeof v === "string")
+                .map((v) => v.slice(0, 200))
+                .slice(0, 8)
+            : [],
+          model: asString(raw.model, 64) ?? "unknown",
+        };
+      }
+    }
+
+    if (photoPaths.length > 0 || severity) {
+      damage = { photoPaths, severity };
+    }
+  }
+
   if (!isPlainObject(body.contact)) {
     return fail("Please complete your name and phone number.");
   }
@@ -604,6 +652,7 @@ export function parseLeadBody(body: unknown): ParseResult<LeadPayload> {
       storeys,
       quoteRange,
       pricingSnapshot,
+      damage,
       contact: { name, phone, email: email ?? "" },
       fallbackReason,
       timestamp,
