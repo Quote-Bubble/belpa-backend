@@ -76,7 +76,7 @@ afterEach(() => {
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
   delete process.env.GEMINI_API_KEY;
-  delete process.env.NODE_ENV;
+  vi.unstubAllEnvs();
   resetGeminiConfigCache();
 });
 
