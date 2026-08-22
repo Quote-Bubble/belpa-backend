@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 
 import { preflight, withCors } from "@/lib/cors";
 import { cacheGet, cacheSet, limitOr429 } from "@/lib/rate-limit";
-import { PROMPT_VERSION, observeSite, unusable } from "@/lib/site-vision";
+import { MODEL_TAG, observeSite, unusable } from "@/lib/site-vision";
 import { parseCoords, readJsonBody } from "@/lib/validate";
 
 import type { SiteObservation } from "@/lib/site-vision";
@@ -29,11 +29,11 @@ const CACHE_DAYS = 30;
 /**
  * ~5 decimal places is about a metre. Neighbouring houses get their own entry,
  * but the same house re-quoted — or two people on the same pin — is free.
- * Prompt version is in the key so changing the prompt invalidates old answers
- * rather than mixing two generations of judgement in one dataset.
+ * Prompt version AND model are in the key, so changing either invalidates old
+ * answers rather than mixing two generations of judgement in one dataset.
  */
 function cacheKey(lat: number, lng: number): string {
-  return `site:v${PROMPT_VERSION}:${lat.toFixed(5)}:${lng.toFixed(5)}`;
+  return `site:v${MODEL_TAG}:${lat.toFixed(5)}:${lng.toFixed(5)}`;
 }
 
 export function OPTIONS(request: Request) {

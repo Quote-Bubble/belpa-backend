@@ -36,7 +36,18 @@ export type SiteObservation = {
 
 type LatLng = { lat: number; lng: number };
 
-const GEMINI_MODEL = "gemini-2.0-flash";
+/**
+ * Pinned, not `-latest`.
+ *
+ * The alias would let Google swap the model under us, and observations are
+ * cached for 30 days — so a silent swap would mix two models' judgement in one
+ * dataset, with old addresses priced by one and new ones by another. Pinning
+ * means a model change is a deliberate edit, and MODEL_TAG below puts it in the
+ * cache key so the old answers are dropped when it happens.
+ *
+ * gemini-2.0-flash was retired: the API now 404s it and points at the 3.x line.
+ */
+export const GEMINI_MODEL = "gemini-3.5-flash-lite";
 
 /**
  * Bump when the prompt or the schema changes.
@@ -47,6 +58,9 @@ const GEMINI_MODEL = "gemini-2.0-flash";
  * two populations would price differently forever.
  */
 export const PROMPT_VERSION = 1;
+
+/** Cache identity: prompt AND model. Either changing invalidates old answers. */
+export const MODEL_TAG = `${PROMPT_VERSION}-${GEMINI_MODEL}`;
 
 /**
  * What the model is asked. Kept deliberately narrow and physical.
