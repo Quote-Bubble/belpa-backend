@@ -426,6 +426,11 @@ export function parseLeadBody(body: unknown): ParseResult<LeadPayload> {
     return fail("Please complete your name and phone number.");
   }
 
+  const affectedArea = parsePolygonCoords(body.affectedArea);
+  if (affectedArea === undefined) {
+    return fail("Please complete your name and phone number.");
+  }
+
   const mapView = parseMapView(body.mapView);
   if (mapView === undefined) {
     return fail("Please complete your name and phone number.");
@@ -644,6 +649,7 @@ export function parseLeadBody(body: unknown): ParseResult<LeadPayload> {
         imageryDate,
       },
       polygonCoords,
+      affectedArea,
       mapView,
       conditionAnswer,
       conditionFlagged,

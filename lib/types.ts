@@ -237,6 +237,11 @@ export type LeadPayload = {
   };
   polygonCoords: LatLng[] | null;
   /**
+   * Repair-only rectangle on the satellite map around the damaged patch.
+   * Null when the customer skipped the step or the job never offered it.
+   */
+  affectedArea: LatLng[] | null;
+  /**
    * Centre + zoom of the satellite map the customer drew on, so the roofer's
    * dashboard can reopen the roof on the same framing rather than inferring
    * one from the polygon. Null when the flow never showed a map.
