@@ -88,8 +88,9 @@ describe("POST /api/severity", () => {
     const body = await response.json();
 
     expect(response.status).toBe(200);
+    // The stubbed Gemini reply grades 3; the route returns it calibrated.
     expect(body).toMatchObject({
-      severity: 3,
+      severity: 2,
       confidence: "high",
       photoPaths: ["roofer/sub/1.jpg"],
     });

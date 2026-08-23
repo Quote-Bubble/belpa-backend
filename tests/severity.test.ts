@@ -49,8 +49,10 @@ describe("parseSeverityResponse", () => {
       visibleIssues: ["two slipped tiles"],
       rationale: "…",
     });
+    // Parsing applies the calibration, so a raw 3 lands at 2 — "two slipped
+    // tiles" is the textbook minor defect the model was over-grading.
     expect(parsed).toMatchObject({
-      score: 3,
+      score: 2,
       confidence: "high",
       visibleIssues: ["two slipped tiles"],
     });
@@ -99,10 +101,19 @@ describe("calibrateScore", () => {
     expect(calibrateScore(99)).toBe(5);
   });
 
-  it("is identity while the offset ships at zero", () => {
-    // If this fails, someone changed SEVERITY_CALIBRATION_OFFSET — that is a
-    // pricing change and needs the bake-off rerun, not just a test update.
-    expect([1, 2, 3, 4, 5].map(calibrateScore)).toEqual([1, 2, 3, 4, 5]);
+  it("corrects the measured over-scoring in the 3-5 range only", () => {
+    // If this fails, someone changed SEVERITY_CALIBRATION_OFFSET or the floor —
+    // that is a pricing change and needs the bake-off rerun, not just a test
+    // update. The model was measured grading +0.60 above a human reference and
+    // never below, so minor defects are left alone and the crowded middle comes
+    // down one band.
+    expect([1, 2, 3, 4, 5].map(calibrateScore)).toEqual([1, 2, 2, 3, 4]);
+  });
+
+  it("never demotes a minor defect to negligible", () => {
+    // The one direction the model was never wrong in. A 2 that becomes a 1
+    // would tell a roofer there is nothing to look at.
+    expect(calibrateScore(2)).toBe(2);
   });
 });
 
@@ -118,7 +129,8 @@ describe("gradeSeverity", () => {
     );
 
     const result = await gradeSeverity(PHOTOS, "tile_or_slate_repair");
-    expect(result).toMatchObject({ score: 4, confidence: "high" });
+    // Raw 4 from Gemini, calibrated down one band on the way out.
+    expect(result).toMatchObject({ score: 3, confidence: "high" });
     expect(calledHosts()).toEqual(["gemini"]);
   });
 

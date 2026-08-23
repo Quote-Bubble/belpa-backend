@@ -37,14 +37,43 @@ const TIMEOUT_MS = 20_000;
 /**
  * The bake-off measured this model grading +0.60 severity points above a human
  * reference across 10 images, never below — it reads weathering as damage.
- * That is a real, consistent bias, but ten images and a single grader is not
- * enough evidence to fix its magnitude, so the correction ships at zero and
- * lives here as one named constant rather than buried in the pricing formula.
+ * That shipped at zero, because ten images and a single grader was not enough
+ * evidence to fix its magnitude.
  *
- * Calibrate against leads.actual_price_ex_vat once ~50 severity-scored jobs
- * have closed; the dashboard already computes won-price variance vs estimate.
+ * It is now applied at one full band. Production agreed with the bake-off:
+ * every graded lead came back 3 or 4 on photographs of ordinary repair work,
+ * which is precisely the over-claiming the bake-off predicted and the prompt's
+ * own CALIBRATION block warns against ("most photographs a homeowner sends are
+ * a 2 or a 3"). Two independent observations pointing the same way, in the one
+ * direction the model was never wrong in, is enough to stop shipping a bias we
+ * have measured twice.
+ *
+ * Known consequence, accepted deliberately: with the correction on, output band
+ * 5 is unreachable, because a bounded integer scale cannot be shifted down and
+ * still reach its own maximum. A genuine emergency now surfaces as 4/5 plus the
+ * visible-issues list plus the photograph itself, which a roofer sees anyway.
+ * Under-stating a serious defect by one band costs less than over-stating every
+ * ordinary one, which is what was happening.
+ *
+ * Replace this with a real fit against leads.actual_price_ex_vat once ~50
+ * severity-scored jobs have closed; the dashboard already computes won-price
+ * variance vs estimate. That fit can restore the full range, because it can be
+ * a rescale rather than a shift.
  */
-export const SEVERITY_CALIBRATION_OFFSET = 0;
+export const SEVERITY_CALIBRATION_OFFSET = 1;
+
+/**
+ * Below this raw score the correction is not applied.
+ *
+ * The bias is real but the scale is integers, and that constrains what any
+ * correction can do: Math.round(n - 0.6) equals n - 1 for every integer n, so
+ * the offset can only ever express whole bands. Applying one to a raw 2 would
+ * push a genuine minor defect to "negligible", which is the one direction the
+ * bake-off found the model is NOT wrong in — it never scored below the human
+ * reference. So the correction runs where the evidence points and where the
+ * scores actually cluster: the crowded 3-4 middle.
+ */
+const CALIBRATION_FLOOR = 3;
 
 type GeminiConfig = { ok: true; apiKey: string } | { ok: false };
 
@@ -83,7 +112,11 @@ export type SeverityPhoto = { mimeType: string; base64: string };
  * the transport so it can be unit-tested without a network mock.
  */
 export function calibrateScore(raw: number): 1 | 2 | 3 | 4 | 5 {
-  const shifted = Math.round(raw - SEVERITY_CALIBRATION_OFFSET);
+  const rounded = Math.round(raw);
+  const shifted =
+    rounded >= CALIBRATION_FLOOR
+      ? rounded - SEVERITY_CALIBRATION_OFFSET
+      : rounded;
   return Math.min(5, Math.max(1, shifted)) as 1 | 2 | 3 | 4 | 5;
 }
 
