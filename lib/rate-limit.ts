@@ -21,7 +21,21 @@ const LIMITS: Record<
   solar: { requests: 20, window: "1 h" },
   "reverse-geocode": { requests: 30, window: "1 h" },
   geocode: { requests: 60, window: "1 h" },
-  "lead-ip": { requests: 10, window: "1 h" },
+  /* An IP is a poor way to identify a homeowner, so this has to be loose.
+   *
+   * UK mobile networks run carrier-grade NAT: thousands of subscribers share a
+   * handful of public addresses, so ten quotes an hour is a budget spent by
+   * strangers. Public wifi, an office, and a roofer demonstrating the widget
+   * to a customer all collapse to one address too. And postLeadWithRetry
+   * retries three times on a 5xx, so a single failing submission could spend
+   * three of the ten before the customer had touched anything.
+   *
+   * It is one of four defences, and the weakest: the honeypot and the fill
+   * timer catch scripts, and lead-slug caps what any roofer can receive in an
+   * hour, which is the damage that actually matters. This is only a backstop
+   * against one machine looping, and a minute apart sustained is far beyond
+   * anything a person does by hand. */
+  "lead-ip": { requests: 60, window: "1 h" },
   "lead-slug": { requests: 100, window: "1 h" },
   // Distinct submission ids — retries with the same id share one slot.
   "lead-submission": { requests: 10, window: "1 h" },
