@@ -247,16 +247,30 @@ export function parseEventBody(body: unknown): ParseResult<ParsedEvent> {
   };
 }
 
+/**
+ * Cap the scan arrays instead of refusing the lead.
+ *
+ * These bound the payload size, which is worth doing — but returning undefined
+ * made an over-long array reject the whole submission, and a Solar scan of a
+ * large or complex building really does come back with more than 64 planes
+ * (one stored lead has 81). The customer then loses the quote entirely because
+ * their roof has too many faces, which is not a sentence anyone would choose
+ * to write.
+ *
+ * The segments are diagnostic: the price is computed in the widget and arrives
+ * in quoteRange, so keeping the first 64 costs some detail on the roofer's
+ * survey drawer and keeps the lead. That is the right way round.
+ */
+const MAX_SCAN_ITEMS = 64;
+
 function parseSegmentContributions(value: unknown): unknown[] | undefined {
   if (!Array.isArray(value)) return undefined;
-  if (value.length > 64) return undefined;
-  return value;
+  return value.slice(0, MAX_SCAN_ITEMS);
 }
 
 function parseRoofSegments(value: unknown): unknown[] | undefined {
   if (!Array.isArray(value)) return undefined;
-  if (value.length > 64) return undefined;
-  return value;
+  return value.slice(0, MAX_SCAN_ITEMS);
 }
 
 function parsePolygonCoords(value: unknown): LatLng[] | null | undefined {

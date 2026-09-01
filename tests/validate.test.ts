@@ -76,3 +76,59 @@ describe("job types the widget can send", () => {
     if (!result.ok) expect(result.reason).toBeTruthy();
   });
 });
+
+/* A roof with many faces must not cost the customer their quote.
+ *
+ * The scan arrays were capped by rejecting anything over 64 items, so a Solar
+ * scan of a large or complex building — one stored lead came back with 81
+ * planes — failed the whole submission. The cap is worth keeping to bound the
+ * payload; it just has to trim rather than refuse, because the price travels
+ * in quoteRange and the segments are only detail for the roofer's survey view. */
+describe("oversized scans", () => {
+  it("are trimmed, not rejected", () => {
+    const seg = { boundingBox: { north: 1, south: 0, east: 1, west: 0 } };
+    const result = parseLeadBody({
+      rooferId: "a-roofer",
+      leadType: "quote",
+      intent: "quote_requested",
+      jobType: "roof_soft_wash",
+      otherJobDescription: null,
+      propertyType: "detached",
+      storeys: 2,
+      material: null,
+      conditionAnswer: null,
+      conditionFlagged: false,
+      coords: { lat: 51.6288, lng: -0.7529 },
+      address: { line: "12 Test Road", postcode: "HP13 6TS", formatted: "x" },
+      contact: { name: "T", phone: "07000000000", email: "" },
+      quoteRange: { minExVat: 380, maxExVat: 520 },
+      solar: {
+        areaM2: 78.4,
+        groundAreaM2: 64.1,
+        pitchDegrees: 35,
+        roofType: null,
+        measurementMethod: "solar_whole_roof",
+        segmentContributions: Array(81).fill({ segmentIndex: 0 }),
+        segments: Array(81).fill(seg),
+        wholeRoofStats: null,
+        imageryQuality: null,
+        imageryDate: null,
+      },
+      roofline: null,
+      obstructions: { chimneys: 0, rooflights: 0 },
+      polygonCoords: [],
+      affectedArea: null,
+      damage: null,
+      mapView: null,
+      pricingSnapshot: null,
+      fallbackReason: null,
+      timestamp: "2026-09-01T10:00:00.000Z",
+    });
+
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.value.solar.segments).toHaveLength(64);
+      expect(result.value.solar.segmentContributions).toHaveLength(64);
+    }
+  });
+});
