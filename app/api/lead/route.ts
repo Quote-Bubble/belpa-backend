@@ -6,7 +6,7 @@ import { NextResponse } from "next/server";
 import { preflight, withCors } from "@/lib/cors";
 import { sendCustomerEstimateEmail, sendLeadEmail } from "@/lib/lead-email";
 import { LeadPersistError, isHotIntent, persistLead } from "@/lib/leads";
-import { loggedFetch, redact } from "@/lib/logged-fetch";
+import { dbCause, loggedFetch, redact } from "@/lib/logged-fetch";
 import { limitOr429 } from "@/lib/rate-limit";
 import { getServiceSupabase } from "@/lib/supabase";
 import {
@@ -182,6 +182,14 @@ async function handlePost(request: Request) {
 
   const validated = parseLeadBody(body);
   if (!validated.ok) {
+    // Log which field failed. The customer sees a general apology, which is
+    // right — they cannot fix a malformed segment array — but without this
+    // there is nothing anywhere saying what was actually wrong, and every
+    // rejection looks identical from the outside.
+    console.warn("lead_rejected", {
+      reason: validated.reason ?? "unknown",
+      rooferId: typeof body.rooferId === "string" ? body.rooferId : null,
+    });
     return NextResponse.json({ error: validated.error }, { status: 400 });
   }
   const payload: LeadPayload = validated.value;
@@ -223,6 +231,10 @@ async function handlePost(request: Request) {
         console.error("Lead Supabase persist failed", {
           leadId,
           ...redact(error),
+          // The database's own verdict. Without it this line said only
+          // "insert_failed", which is how a check constraint rejecting every
+          // cleaning lead stayed invisible.
+          ...dbCause((error as { cause?: unknown }).cause),
         });
         return NextResponse.json({ error: error.message }, { status: 502 });
       }

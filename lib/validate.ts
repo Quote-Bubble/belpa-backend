@@ -14,7 +14,11 @@ import type {
 } from "@/lib/types";
 
 export type ParseOk<T> = { ok: true; value: T };
-export type ParseErr = { ok: false; error: string };
+/** `error` is shown to the customer. `reason` names the field that actually
+ *  failed and is for logs only — 36 different checks used to share one
+ *  message, so a database-level problem with the job type announced itself as
+ *  a problem with the customer's phone number. */
+export type ParseErr = { ok: false; error: string; reason?: string };
 export type ParseResult<T> = ParseOk<T> | ParseErr;
 
 const MAX_BODY_BYTES = 64 * 1024;
@@ -91,8 +95,8 @@ const KNOWN_EVENTS = new Set([
   "lead_failed",
 ]);
 
-function fail(error: string): ParseErr {
-  return { ok: false, error };
+function fail(error: string, reason?: string): ParseErr {
+  return { ok: false, error, reason };
 }
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
@@ -292,17 +296,17 @@ function parseMapView(
  */
 export function parseLeadBody(body: unknown): ParseResult<LeadPayload> {
   if (!isPlainObject(body)) {
-    return fail("Please complete your name and phone number.");
+    return fail("Some of your answers didn't come through. Please try again.", "payload");
   }
 
   const rooferId = asString(body.rooferId, 128, { required: true });
   if (!rooferId) {
-    return fail("Please complete your name and phone number.");
+    return fail("Some of your answers didn't come through. Please try again.", "rooferId");
   }
 
   const leadTypeRaw = asString(body.leadType, 40, { required: true });
   if (!leadTypeRaw || !VALID_LEAD_TYPES.has(leadTypeRaw)) {
-    return fail("Please complete your name and phone number.");
+    return fail("Some of your answers didn't come through. Please try again.", "leadType");
   }
 
   // Optional + lenient: older widget builds omit it, and this field only tiers
@@ -316,7 +320,7 @@ export function parseLeadBody(body: unknown): ParseResult<LeadPayload> {
 
   const jobTypeRaw = asString(body.jobType, 64, { required: true });
   if (!jobTypeRaw || !VALID_JOB_TYPES.has(jobTypeRaw as JobType)) {
-    return fail("Please complete your name and phone number.");
+    return fail("Some of your answers didn't come through. Please try again.", "jobType");
   }
   const jobType = jobTypeRaw as JobType;
 
@@ -325,11 +329,11 @@ export function parseLeadBody(body: unknown): ParseResult<LeadPayload> {
       ? null
       : asString(body.otherJobDescription, 500);
   if (otherJobDescription === undefined) {
-    return fail("Please complete your name and phone number.");
+    return fail("Some of your answers didn't come through. Please try again.", "otherJobDescription");
   }
 
   if (!isPlainObject(body.address)) {
-    return fail("Please complete your name and phone number.");
+    return fail("Some of your answers didn't come through. Please try again.", "address");
   }
   const postcode = asString(body.address.postcode, 20, { required: true });
   const line = asString(body.address.line, 200, {
@@ -337,23 +341,23 @@ export function parseLeadBody(body: unknown): ParseResult<LeadPayload> {
     allowEmpty: true,
   });
   if (line === undefined || !postcode) {
-    return fail("Please complete your name and phone number.");
+    return fail("Some of your answers didn't come through. Please try again.", "address");
   }
   const formatted =
     body.address.formatted === null || body.address.formatted === undefined
       ? null
       : asString(body.address.formatted, 300);
   if (formatted === undefined) {
-    return fail("Please complete your name and phone number.");
+    return fail("Some of your answers didn't come through. Please try again.", "address");
   }
 
   const coords = parseLatLng(body.coords);
   if (coords === undefined) {
-    return fail("Please complete your name and phone number.");
+    return fail("Some of your answers didn't come through. Please try again.", "coords");
   }
 
   if (!isPlainObject(body.solar)) {
-    return fail("Please complete your name and phone number.");
+    return fail("Some of your answers didn't come through. Please try again.", "solar");
   }
   const solar = body.solar;
   const areaM2 = asFiniteNumber(solar.areaM2);
@@ -364,14 +368,14 @@ export function parseLeadBody(body: unknown): ParseResult<LeadPayload> {
     groundAreaM2 === undefined ||
     pitchDegrees === undefined
   ) {
-    return fail("Please complete your name and phone number.");
+    return fail("Some of your answers didn't come through. Please try again.", "pitchDegrees");
   }
 
   let roofType: RoofType | null = null;
   if (solar.roofType !== null && solar.roofType !== undefined) {
     const rt = asString(solar.roofType, 20);
     if (!rt || !VALID_ROOF_TYPES.has(rt as RoofType)) {
-      return fail("Please complete your name and phone number.");
+      return fail("Some of your answers didn't come through. Please try again.", "roofType");
     }
     roofType = rt as RoofType;
   }
@@ -383,7 +387,7 @@ export function parseLeadBody(body: unknown): ParseResult<LeadPayload> {
   ) {
     const mm = asString(solar.measurementMethod, 40);
     if (!mm || !VALID_MEASUREMENT_METHODS.has(mm as RoofMeasurement["method"])) {
-      return fail("Please complete your name and phone number.");
+      return fail("Some of your answers didn't come through. Please try again.", "measurementMethod");
     }
     measurementMethod = mm as RoofMeasurement["method"];
   }
@@ -393,18 +397,18 @@ export function parseLeadBody(body: unknown): ParseResult<LeadPayload> {
   );
   const segments = parseRoofSegments(solar.segments);
   if (segmentContributions === undefined || segments === undefined) {
-    return fail("Please complete your name and phone number.");
+    return fail("Some of your answers didn't come through. Please try again.", "segments");
   }
 
   let wholeRoofStats: LeadPayload["solar"]["wholeRoofStats"] = null;
   if (solar.wholeRoofStats !== null && solar.wholeRoofStats !== undefined) {
     if (!isPlainObject(solar.wholeRoofStats)) {
-      return fail("Please complete your name and phone number.");
+      return fail("Some of your answers didn't come through. Please try again.", "wholeRoofStats");
     }
     const am = asFiniteNumber(solar.wholeRoofStats.areaMeters2);
     const gm = asFiniteNumber(solar.wholeRoofStats.groundAreaMeters2);
     if (am === undefined || gm === undefined || am === null || gm === null) {
-      return fail("Please complete your name and phone number.");
+      return fail("Some of your answers didn't come through. Please try again.", "wholeRoofStats");
     }
     wholeRoofStats = { areaMeters2: am, groundAreaMeters2: gm };
   }
@@ -418,43 +422,43 @@ export function parseLeadBody(body: unknown): ParseResult<LeadPayload> {
       ? null
       : asString(solar.imageryDate, 40);
   if (imageryQuality === undefined || imageryDate === undefined) {
-    return fail("Please complete your name and phone number.");
+    return fail("Some of your answers didn't come through. Please try again.", "imageryDate");
   }
 
   const polygonCoords = parsePolygonCoords(body.polygonCoords);
   if (polygonCoords === undefined) {
-    return fail("Please complete your name and phone number.");
+    return fail("Some of your answers didn't come through. Please try again.", "polygonCoords");
   }
 
   const affectedArea = parsePolygonCoords(body.affectedArea);
   if (affectedArea === undefined) {
-    return fail("Please complete your name and phone number.");
+    return fail("Some of your answers didn't come through. Please try again.", "affectedArea");
   }
 
   const mapView = parseMapView(body.mapView);
   if (mapView === undefined) {
-    return fail("Please complete your name and phone number.");
+    return fail("Some of your answers didn't come through. Please try again.", "mapView");
   }
 
   let conditionAnswer: ConditionAnswer | null = null;
   if (body.conditionAnswer !== null && body.conditionAnswer !== undefined) {
     const ca = asString(body.conditionAnswer, 20);
     if (!ca || !VALID_CONDITION.has(ca as ConditionAnswer)) {
-      return fail("Please complete your name and phone number.");
+      return fail("Some of your answers didn't come through. Please try again.", "conditionAnswer");
     }
     conditionAnswer = ca as ConditionAnswer;
   }
 
   const conditionFlagged = asBoolean(body.conditionFlagged);
   if (conditionFlagged === undefined) {
-    return fail("Please complete your name and phone number.");
+    return fail("Some of your answers didn't come through. Please try again.", "conditionFlagged");
   }
 
   let material: Material | null = null;
   if (body.material !== null && body.material !== undefined) {
     const m = asString(body.material, 40);
     if (!m || !VALID_MATERIALS.has(m as Material)) {
-      return fail("Please complete your name and phone number.");
+      return fail("Some of your answers didn't come through. Please try again.", "material");
     }
     material = m as Material;
   }
@@ -463,7 +467,7 @@ export function parseLeadBody(body: unknown): ParseResult<LeadPayload> {
   if (body.propertyType !== null && body.propertyType !== undefined) {
     const p = asString(body.propertyType, 40);
     if (!p || !VALID_PROPERTY_TYPES.has(p as PropertyType)) {
-      return fail("Please complete your name and phone number.");
+      return fail("Some of your answers didn't come through. Please try again.", "propertyType");
     }
     propertyType = p as PropertyType;
   }
@@ -472,7 +476,7 @@ export function parseLeadBody(body: unknown): ParseResult<LeadPayload> {
   if (body.storeys !== null && body.storeys !== undefined) {
     const s = asFiniteNumber(body.storeys);
     if (!s || !VALID_STOREYS.has(s as StoreyBand)) {
-      return fail("Please complete your name and phone number.");
+      return fail("Some of your answers didn't come through. Please try again.", "storeys");
     }
     storeys = s as StoreyBand;
   }
@@ -480,7 +484,7 @@ export function parseLeadBody(body: unknown): ParseResult<LeadPayload> {
   let quoteRange: LeadPayload["quoteRange"] = null;
   if (body.quoteRange !== null && body.quoteRange !== undefined) {
     if (!isPlainObject(body.quoteRange)) {
-      return fail("Please complete your name and phone number.");
+      return fail("Some of your answers didn't come through. Please try again.", "quoteRange");
     }
     const minExVat = asFiniteNumber(body.quoteRange.minExVat);
     const maxExVat = asFiniteNumber(body.quoteRange.maxExVat);
@@ -490,7 +494,7 @@ export function parseLeadBody(body: unknown): ParseResult<LeadPayload> {
       minExVat === null ||
       maxExVat === null
     ) {
-      return fail("Please complete your name and phone number.");
+      return fail("Some of your answers didn't come through. Please try again.", "quoteRange");
     }
     quoteRange = { minExVat, maxExVat };
   }
@@ -540,7 +544,7 @@ export function parseLeadBody(body: unknown): ParseResult<LeadPayload> {
   }
 
   if (!isPlainObject(body.contact)) {
-    return fail("Please complete your name and phone number.");
+    return fail("Please complete your name and phone number.", "contact");
   }
   const name = asString(body.contact.name, 100, { required: true });
   const phone = asString(body.contact.phone, 20, { required: true });
@@ -549,7 +553,7 @@ export function parseLeadBody(body: unknown): ParseResult<LeadPayload> {
     allowEmpty: true,
   });
   if (!name || !phone || email === undefined) {
-    return fail("Please complete your name and phone number.");
+    return fail("Please complete your name and phone number.", "contact");
   }
 
   const fallbackReason =
@@ -557,29 +561,29 @@ export function parseLeadBody(body: unknown): ParseResult<LeadPayload> {
       ? null
       : asString(body.fallbackReason, 500);
   if (fallbackReason === undefined) {
-    return fail("Please complete your name and phone number.");
+    return fail("Some of your answers didn't come through. Please try again.", "fallbackReason");
   }
 
   const timestamp = asString(body.timestamp, 40, { required: true });
   if (!timestamp) {
-    return fail("Please complete your name and phone number.");
+    return fail("Some of your answers didn't come through. Please try again.", "timestamp");
   }
 
   let roofline: LeadPayload["roofline"] = null;
   if (body.roofline !== null && body.roofline !== undefined) {
     if (!isPlainObject(body.roofline)) {
-      return fail("Please complete your name and phone number.");
+      return fail("Some of your answers didn't come through. Please try again.", "roofline");
     }
     const perimeterM = asFiniteNumber(body.roofline.perimeterM);
     const gutterLengthM = asFiniteNumber(body.roofline.gutterLengthM);
     if (perimeterM === undefined || gutterLengthM === undefined) {
-      return fail("Please complete your name and phone number.");
+      return fail("Some of your answers didn't come through. Please try again.", "roofline");
     }
     let scope: RooflineScope | null = null;
     if (body.roofline.scope !== null && body.roofline.scope !== undefined) {
       const s = asString(body.roofline.scope, 40);
       if (!s || !VALID_ROOFLINE_SCOPE.has(s as RooflineScope)) {
-        return fail("Please complete your name and phone number.");
+        return fail("Some of your answers didn't come through. Please try again.", "roofline");
       }
       scope = s as RooflineScope;
     }
@@ -589,7 +593,7 @@ export function parseLeadBody(body: unknown): ParseResult<LeadPayload> {
   let obstructions: LeadPayload["obstructions"] = null;
   if (body.obstructions !== null && body.obstructions !== undefined) {
     if (!isPlainObject(body.obstructions)) {
-      return fail("Please complete your name and phone number.");
+      return fail("Some of your answers didn't come through. Please try again.", "obstructions");
     }
     const chimneys = asFiniteNumber(body.obstructions.chimneys);
     const rooflights = asFiniteNumber(body.obstructions.rooflights);
@@ -599,7 +603,7 @@ export function parseLeadBody(body: unknown): ParseResult<LeadPayload> {
       chimneys === null ||
       rooflights === null
     ) {
-      return fail("Please complete your name and phone number.");
+      return fail("Some of your answers didn't come through. Please try again.", "obstructions");
     }
     obstructions = { chimneys, rooflights };
   }

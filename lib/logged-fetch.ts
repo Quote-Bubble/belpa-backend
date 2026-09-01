@@ -27,6 +27,34 @@ export function redact(error: unknown): { code?: string; message: string } {
   return { message: "error" };
 }
 
+/**
+ * The safe half of a Postgres error, from an error's `cause`.
+ *
+ * redact() is right to throw the message away — PostgrestError.details prints
+ * the whole offending row, customer name and phone included. But it is called
+ * on our own wrapper, so the underlying failure was reduced to "insert_failed"
+ * and nothing else. A check constraint rejected every roof-cleaning lead for
+ * weeks and the logs recorded only that an insert had failed.
+ *
+ * The SQLSTATE and the constraint name are facts about the schema, not about
+ * the customer, so both are safe to record. Nothing else is taken.
+ */
+export function dbCause(cause: unknown): {
+  dbCode?: string;
+  constraint?: string;
+} {
+  if (!cause || typeof cause !== "object") return {};
+  const c = cause as { code?: unknown; message?: unknown };
+  const out: { dbCode?: string; constraint?: string } = {};
+  if (typeof c.code === "string") out.dbCode = c.code;
+  if (typeof c.message === "string") {
+    // e.g.: violates check constraint "leads_job_type_known"
+    const named = /constraint "([A-Za-z0-9_]+)"/.exec(c.message);
+    if (named) out.constraint = named[1];
+  }
+  return out;
+}
+
 export async function loggedFetch(
   label: string,
   input: RequestInfo | URL,
