@@ -11,6 +11,7 @@ export type ServiceKey =
   | "roof_soft_wash"
   | "roof_biocide_treatment"
   | "gutter_clearing"
+  | "driveway_cleaning"
   | "leak_investigation"
   | "other";
 
@@ -29,6 +30,7 @@ export const CLEANING_SERVICE_KEYS: ServiceKey[] = [
   "roof_soft_wash",
   "roof_biocide_treatment",
   "gutter_clearing",
+  "driveway_cleaning",
 ];
 
 export type AccessMode =
@@ -81,6 +83,13 @@ export type AreaCleanServiceConfig = {
   minCalloutExVat: number;
 };
 
+/** Driveway cleaning: £/m² of the drive drawn, plus an optional seal pass. */
+export type DrivewayServiceConfig = {
+  ratePerM2ExVat: number;
+  minCalloutExVat: number;
+  sealPerM2ExVat: number;
+};
+
 /** A flat-price service (e.g. a gutter clear-out). */
 export type FlatServiceConfig = {
   fixedExVat: number;
@@ -94,6 +103,7 @@ export type ServiceConfigs = {
   roof_soft_wash?: AreaCleanServiceConfig;
   roof_biocide_treatment?: AreaCleanServiceConfig;
   gutter_clearing?: FlatServiceConfig;
+  driveway_cleaning?: DrivewayServiceConfig;
 };
 
 export type QuoteConfig = {
@@ -154,6 +164,12 @@ export const SERVICE_CATALOG: ServiceMeta[] = [
     key: "gutter_clearing",
     label: "Gutter clearing",
     description: "Flat-price gutter clear-out.",
+    priced: true,
+  },
+  {
+    key: "driveway_cleaning",
+    label: "Driveway cleaning",
+    description: "Priced per m² of the drive the customer marks out.",
     priced: true,
   },
   {
@@ -257,6 +273,11 @@ export function defaultBiocide(): AreaCleanServiceConfig {
   return { ratePerM2ExVat: 5, minCalloutExVat: 100 };
 }
 
+/** Driveway cleaning, matching the widget's researched defaults. */
+export function defaultDrivewayCleaning(): DrivewayServiceConfig {
+  return { ratePerM2ExVat: 4.5, minCalloutExVat: 80, sealPerM2ExVat: 4 };
+}
+
 /** UK-average flat gutter clear-out. */
 export function defaultGutterClearing(): FlatServiceConfig {
   return { fixedExVat: 120 };
@@ -273,6 +294,7 @@ function allDefaultServiceConfigs(): ServiceConfigs {
     roof_soft_wash: defaultSoftWash(),
     roof_biocide_treatment: defaultBiocide(),
     gutter_clearing: defaultGutterClearing(),
+    driveway_cleaning: defaultDrivewayCleaning(),
   };
 }
 
@@ -506,6 +528,16 @@ export function parseQuoteConfig(raw: unknown): QuoteConfig {
         const r = servicesRaw.gutter_clearing;
         if (!isObj(r)) return d;
         return { fixedExVat: num(r.fixedExVat, d.fixedExVat) };
+      })(),
+      driveway_cleaning: (() => {
+        const d = defaultDrivewayCleaning();
+        const r = servicesRaw.driveway_cleaning;
+        if (!isObj(r)) return d;
+        return {
+          ratePerM2ExVat: num(r.ratePerM2ExVat, d.ratePerM2ExVat),
+          minCalloutExVat: num(r.minCalloutExVat, d.minCalloutExVat),
+          sealPerM2ExVat: num(r.sealPerM2ExVat, d.sealPerM2ExVat),
+        };
       })(),
     },
     vatRegistered: bool(raw.vatRegistered, true),
