@@ -24,6 +24,7 @@ describe("job types the widget can send", () => {
     "roof_soft_wash",
     "roof_biocide_treatment",
     "gutter_clearing",
+    "driveway_cleaning",
     "other",
   ];
 

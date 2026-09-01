@@ -6,8 +6,19 @@ export type JobType =
   | "roof_soft_wash"
   | "roof_biocide_treatment"
   | "gutter_clearing"
+  | "driveway_cleaning"
   | "leak_investigation"
   | "other";
+
+/** What a driveway is made of. Gravel is offered but never priced — there is
+ *  no surface to clean, so the widget routes it to a callback. */
+export type DrivewaySurface =
+  | "block_paving"
+  | "concrete"
+  | "tarmac"
+  | "resin"
+  | "natural_stone"
+  | "gravel";
 
 export type MeasuredJobType =
   | "full_replacement"
@@ -241,6 +252,13 @@ export type LeadPayload = {
    * Null when the customer skipped the step or the job never offered it.
    */
   affectedArea: LatLng[] | null;
+  /** Driveway cleaning only; null for every other job. */
+  driveway: {
+    surface: DrivewaySurface;
+    sealing: boolean;
+    path: LatLng[] | null;
+    areaM2: number | null;
+  } | null;
   /**
    * Centre + zoom of the satellite map the customer drew on, so the roofer's
    * dashboard can reopen the roof on the same framing rather than inferring

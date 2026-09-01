@@ -1,6 +1,7 @@
 import type {
   ConditionAnswer,
   DamageSeverity,
+  DrivewaySurface,
   JobType,
   LatLng,
   LeadIntent,
@@ -31,8 +32,18 @@ const VALID_JOB_TYPES = new Set<JobType>([
   "roof_soft_wash",
   "roof_biocide_treatment",
   "gutter_clearing",
+  "driveway_cleaning",
   "leak_investigation",
   "other",
+]);
+
+const VALID_DRIVEWAY_SURFACES = new Set<DrivewaySurface>([
+  "block_paving",
+  "concrete",
+  "tarmac",
+  "resin",
+  "natural_stone",
+  "gravel",
 ]);
 
 const VALID_LEAD_TYPES = new Set(["quote", "manual_consultation"]);
@@ -449,6 +460,32 @@ export function parseLeadBody(body: unknown): ParseResult<LeadPayload> {
     return fail("Some of your answers didn't come through. Please try again.", "affectedArea");
   }
 
+  /* Driveway cleaning. Optional throughout — every other job sends null —
+     but when present the surface has to be one we recognise, because it
+     selects a price multiplier on the widget side. */
+  let driveway: LeadPayload["driveway"] = null;
+  if (body.driveway !== null && body.driveway !== undefined) {
+    if (!isPlainObject(body.driveway)) {
+      return fail("Some of your answers didn't come through. Please try again.", "driveway");
+    }
+    const surface = asString(body.driveway.surface, 32, { required: true });
+    if (!surface || !VALID_DRIVEWAY_SURFACES.has(surface as DrivewaySurface)) {
+      return fail("Some of your answers didn't come through. Please try again.", "driveway");
+    }
+    const sealing = asBoolean(body.driveway.sealing);
+    const drivewayPath = parsePolygonCoords(body.driveway.path);
+    const areaM2 = asFiniteNumber(body.driveway.areaM2);
+    if (sealing === undefined || drivewayPath === undefined || areaM2 === undefined) {
+      return fail("Some of your answers didn't come through. Please try again.", "driveway");
+    }
+    driveway = {
+      surface: surface as DrivewaySurface,
+      sealing,
+      path: drivewayPath,
+      areaM2,
+    };
+  }
+
   const mapView = parseMapView(body.mapView);
   if (mapView === undefined) {
     return fail("Some of your answers didn't come through. Please try again.", "mapView");
@@ -668,6 +705,7 @@ export function parseLeadBody(body: unknown): ParseResult<LeadPayload> {
       },
       polygonCoords,
       affectedArea,
+      driveway,
       mapView,
       conditionAnswer,
       conditionFlagged,

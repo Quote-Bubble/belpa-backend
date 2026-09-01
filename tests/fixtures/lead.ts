@@ -29,6 +29,7 @@ export function makeLeadPayload(
     },
     polygonCoords: null,
     affectedArea: null,
+  driveway: null,
     mapView: null,
     conditionAnswer: "yes",
     conditionFlagged: false,
